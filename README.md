@@ -9,7 +9,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 ## Status
 
 - [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
-- [ ] Phase 1A: Clean the labour-law texts and split them into chunks, one per article.
+- [x] Phase 1A: Clean the labour-law texts and split them into chunks, one per article. Results are in [docs/chunking-report.md](docs/chunking-report.md).
 - [ ] Phase 1B: Embed the chunks with a local Ollama model and store them in Postgres + pgvector.
 - [ ] Phase 1C: One-shot RAG baseline: search once, then answer with citations.
 - [ ] Phase 2: Agent loop in LangGraph: rewriter, search tools and judge, at most 3 rounds.
@@ -18,7 +18,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 
 ## How it works
 
-Only the data exploration is built so far. The rest is the plan.
+The data exploration and the cleaning and chunking are built. The rest is the plan.
 
 ```
 BUILD THE INDEX (once)
@@ -29,7 +29,7 @@ BUILD THE INDEX (once)
   explore the data ................ built     Phase 0
         |
         v
-  clean, chunk by article ......... planned   Phase 1A
+  clean, chunk by article ......... built     Phase 1A
         |
         v
   embed with Ollama,
@@ -69,9 +69,13 @@ Phase 4 compares the two versions.
 | `LICENSE` | MIT licence for the code in this repository. |
 | `requirements.txt` | Python packages. Only duckdb for now. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
+| `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
+| `labour_rag/` | Shared Python code: text normalisation, page-noise removal, header parsing, article detection, chunking. |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
+| `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
+| `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
-| `data/` | The downloaded dataset and script output. Created during setup, not in git. |
+| `data/` | The downloaded dataset, script output and the chunks file `data/processed/labour_chunks.jsonl`. Created during setup, not in git. |
 | `.venv/` | Local Python environment. Created during setup, not in git. |
 
 ## Setup and running
@@ -111,7 +115,23 @@ Run every command below from the repository root, the folder that contains this 
 
    It takes about a minute and writes `data/exploration/stats.json` plus three sample texts. It looks at
    all 47 volumes, so that the labour volume can be compared with the rest. The `-I` flag runs Python
-   in isolated mode, a small precaution when reading downloaded files.
+   in isolated mode, a small precaution when reading downloaded files. This step is optional.
+
+4. Clean and chunk the labour-law volume:
+
+   ```bash
+   .venv/bin/python -I scripts/build_chunks.py
+   ```
+
+   It takes a few seconds. It writes `data/processed/labour_chunks.jsonl` (one chunk per line),
+   `data/processed/running_titles.json` (the page titles it learned to remove) and
+   `docs/chunking-report.md`.
+
+5. Run the tests:
+
+   ```bash
+   .venv/bin/python -m unittest discover -s tests -t .
+   ```
 
 ## Data and credits
 

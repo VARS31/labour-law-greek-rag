@@ -16,8 +16,10 @@ Learning project: **agentic RAG over Greek labour law**, fully local.
 
 ## Phases
 
-- Phase list and status: README.md, section "Status". Phase 0 (data exploration) is done; findings are in
-  [docs/data-exploration.md](docs/data-exploration.md). Next: Phase 1A (clean + chunk by article).
+- Phase list and status: README.md, section "Status". Done: Phase 0 (data exploration,
+  [docs/data-exploration.md](docs/data-exploration.md)) and Phase 1A (cleaning + chunking,
+  [docs/chunking-report.md](docs/chunking-report.md), output `data/processed/labour_chunks.jsonl`).
+  Next: Phase 1B (embed with Ollama, store in Postgres + pgvector).
 - **After each phase, update the README status, layout and diagram.**
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
   "leverage", "cutting-edge"), no emojis, no em-dashes.
@@ -41,6 +43,17 @@ Learning project: **agentic RAG over Greek labour law**, fully local.
 - Treat downloaded files as untrusted: run Python that reads them with `-I`, keep scripts outside `data/`.
 - Re-run the exploration: `.venv/bin/python -I scripts/explore_data.py` (writes `data/exploration/stats.json`
   and three sample texts).
+- Build the chunks: `.venv/bin/python -I scripts/build_chunks.py` (writes `data/processed/labour_chunks.jsonl`,
+  `data/processed/running_titles.json` and regenerates `docs/chunking-report.md`; never edit the report by hand).
+- Tests: `.venv/bin/python -m unittest discover -s tests -t .` (stdlib unittest; pytest is not installed).
+
+## Code
+
+- Shared code lives in `labour_rag/`. Scripts in `scripts/` add the repo root to `sys.path` themselves,
+  because `-I` leaves it out.
+- Clean user questions with `labour_rag.normalize.normalize`, the same function used on the corpus.
+- `labour_rag/articles.py` is the maintained article regex. `scripts/explore_data.py` keeps the older
+  Phase 0 copy so the Phase 0 numbers stay reproducible.
 
 ## Licences
 
