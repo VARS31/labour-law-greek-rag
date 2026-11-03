@@ -6,20 +6,36 @@ Learning project: **agentic RAG over Greek labour law**, fully local.
 
 - Scope: **labour law only**, i.e. volume 41 (label id 41, *ΕΡΓΑΤΙΚΗ ΝΟΜΟΘΕΣΙΑ*) of the Hugging Face
   dataset `AI-team-UoA/greek_legal_code` (CC-BY-4.0): 1,284 documents dated 1852–1999. The other 46
-  volumes are out of scope.
+  volumes are out of scope. Later (Phase 5) a modern layer adds Π.Δ. 80/2022, labelled by period.
 - Models: local only, via **Ollama** (embeddings + LLM). No paid APIs.
-- Storage (later): **Postgres + pgvector**. Postgres.app 16 with pgvector 0.8.6 is installed locally.
-- Agent: a **LangGraph** loop: query rewriter → search tools → judge, then either loop again
-  (max **3 rounds**) or answer with citations → citation check.
-- Evaluation: compare **one-shot RAG** (retrieve once, answer) against **agentic RAG** (the loop above)
-  on the same questions.
+- Storage: **Postgres + pgvector in Docker on port 5433**. Postgres.app already runs on 5432; leave it alone.
+- Search: semantic (vectors) plus accent-insensitive keyword search.
+- Agent: a **LangGraph** loop: rewriter (incl. katharevousa variants) → search tools → judge → max
+  **3 rounds** → answer → citation check.
+- Evaluation: an eval set (questions with expected answers and sources), then **one-shot RAG** vs
+  **agentic RAG** on it, for quality and time.
 
 ## Phases
 
-- Phase list and status: README.md, section "Status". Done: Phase 0 (data exploration,
-  [docs/data-exploration.md](docs/data-exploration.md)) and Phase 1A (cleaning + chunking,
-  [docs/chunking-report.md](docs/chunking-report.md), output `data/processed/labour_chunks.jsonl`).
-  Next: Phase 1B (embed with Ollama, store in Postgres + pgvector).
+Same list as README.md "Status"; keep the two in sync.
+
+- 0: explore the data (**done**, [docs/data-exploration.md](docs/data-exploration.md))
+- 1A: clean and chunk (**done**, [docs/chunking-report.md](docs/chunking-report.md), output
+  `data/processed/labour_chunks.jsonl`; non-programmer tour in [docs/code-tour.md](docs/code-tour.md))
+- 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app uses 5432), embeddings with a local
+  Ollama model, semantic + accent-insensitive keyword search
+- 1C: one-shot baseline: search once, answer with citations, citations checked in code
+- 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics
+- 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
+  rounds → answer → citation check
+- 4: compare one-shot vs agentic on the eval set (quality, time)
+- 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
+  answers can compare historical and current law
+- Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
+  `repeal_sentences` field of each chunk.
+
+Next: Phase 1B.
+
 - **After each phase, update the README status, layout and diagram.**
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
   "leverage", "cutting-edge"), no emojis, no em-dashes.

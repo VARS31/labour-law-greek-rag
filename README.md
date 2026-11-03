@@ -9,12 +9,15 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 ## Status
 
 - [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
-- [x] Phase 1A: Clean the labour-law texts and split them into chunks, one per article. Results are in [docs/chunking-report.md](docs/chunking-report.md).
-- [ ] Phase 1B: Embed the chunks with a local Ollama model and store them in Postgres + pgvector.
-- [ ] Phase 1C: One-shot RAG baseline: search once, then answer with citations.
-- [ ] Phase 2: Agent loop in LangGraph: rewriter, search tools and judge, at most 3 rounds.
-- [ ] Phase 3: Citation check: confirm that each cited article says what the answer claims.
-- [ ] Phase 4: Evaluation: one-shot RAG against agentic RAG on the same set of questions.
+- [x] Phase 1A: Clean the labour-law texts and split them into chunks. Results are in [docs/chunking-report.md](docs/chunking-report.md).
+- [ ] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search.
+- [ ] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code.
+- [ ] Phase 2: Evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics.
+- [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
+- [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
+- [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
+
+Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
 
 ## How it works
 
@@ -41,23 +44,24 @@ ANSWER A QUESTION
   question
         |
         v
-  rewriter ........................ planned   Phase 2   <-----+
+  rewriter ........................ planned   Phase 3  <-----+
         |                                                    |
         v                                                    |
-  search tools .................... planned   Phase 1C       |
+  search tools .................... planned   Phase 1B       |
         |                                                    |
         v                                                    |
-  judge: enough to answer? ........ planned   Phase 2        |
+  judge: enough to answer? ........ planned   Phase 3        |
         |   no, and fewer than 3 rounds done: try again -----+
         |   yes, or 3 rounds done
         v
   answer with citations ........... planned   Phase 1C
         |
         v
-  citation check .................. planned   Phase 3
+  citation check .................. planned   Phase 1C
 ```
 
 The one-shot baseline from Phase 1C skips the rewriter and the judge. It searches once and answers.
+Phase 2 builds the test questions that both versions are measured on.
 Phase 4 compares the two versions.
 
 ## Project layout
@@ -70,6 +74,7 @@ Phase 4 compares the two versions.
 | `requirements.txt` | Python packages. Only duckdb for now. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
 | `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
+| `docs/code-tour.md` | A tour of the code for people who don't read Python. |
 | `labour_rag/` | Shared Python code: text normalisation, page-noise removal, header parsing, article detection, chunking. |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
