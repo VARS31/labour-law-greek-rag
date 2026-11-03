@@ -1,0 +1,151 @@
+"""Search the chunks three ways:
+
+  semantic  nearest embeddings (cosine similarity of bge-m3 vectors)
+  keyword   Postgres full-text search: accent-insensitive, Greek stopwords removed, any query word may match
+  hybrid    Reciprocal Rank Fusion (RRF) of the two lists
+
+The question is cleaned with the same normalisation as the chunks (labour_rag.normalize).
+
+    .venv/bin/python -m labour_rag.search "κανονική άδεια εργαζομένων" [-k 10]
+"""
+
+import argparse
+import shutil
+import textwrap
+
+from .db import connect, vector_literal
+from .model_client import ModelClient
+from .normalize import normalize
+
+CANDIDATES = 50     # how many results hybrid takes from each list before fusing
+RRF_K = 60          # the usual RRF constant: score = sum of 1 / (RRF_K + rank)
+_COLUMNS = "id, citation, article, is_note, is_stub, text"
+
+_SEMANTIC = f"""
+    SELECT {_COLUMNS}, 1 - (embedding <=> %(v)s::vector) AS score
+    FROM chunks
+    ORDER BY embedding <=> %(v)s::vector
+    LIMIT %(k)s
+"""
+# The query words, after the same processing as the chunks, joined with OR ("|"). Ranked by ts_rank with
+# length normalisation (option 1), so long chunks don't win just by repeating a word.
+_KEYWORD = f"""
+    WITH q AS (
+        SELECT string_agg(quote_literal(lexeme), ' | ')::tsquery AS query
+        FROM unnest(to_tsvector('greek_labour', %(q)s))
+    )
+    SELECT {_COLUMNS}, ts_rank(fts, q.query, 1) AS score
+    FROM chunks, q
+    WHERE q.query IS NOT NULL AND fts @@ q.query
+    ORDER BY score DESC, id
+    LIMIT %(k)s
+"""
+
+
+def _rows(cursor):
+    names = [d.name for d in cursor.description]
+    return [dict(zip(names, row), rank=i) for i, row in enumerate(cursor.fetchall(), 1)]
+
+
+def query_lexemes(conn, question):
+    """The words keyword search will look for, after normalisation, stopwords and stemming."""
+    return conn.execute("SELECT array(SELECT lexeme FROM unnest(to_tsvector('greek_labour', %s)))",
+                        [normalize(question)]).fetchone()[0]
+
+
+def semantic(conn, client, question, k=10, vector=None):
+    """Nearest chunks by cosine similarity. Uses the HNSW index when it exists.
+
+    The vectors are stored out of line (TOAST) and Postgres' planner doesn't count that cost, so on its own it
+    picks a full table scan even when the HNSW index is there. pgvector's README suggests switching sequential
+    scans off for such queries; without an index Postgres still scans, because it has no other way."""
+    vector = vector or client.embed([normalize(question)])[0]
+    conn.execute("SET enable_seqscan = off")
+    try:
+        return _rows(conn.execute(_SEMANTIC, {"v": vector_literal(vector), "k": k}))
+    finally:
+        conn.execute("RESET enable_seqscan")
+
+
+def explain_semantic(conn, vector, k=10):
+    """The query plan semantic() gets, as a short list of plan steps."""
+    conn.execute("SET enable_seqscan = off")
+    try:
+        plan = conn.execute("EXPLAIN (FORMAT JSON) " + _SEMANTIC, {"v": vector_literal(vector), "k": k}).fetchone()[0]
+    finally:
+        conn.execute("RESET enable_seqscan")
+    nodes, stack = [], [plan[0]["Plan"]]
+    while stack:
+        node = stack.pop()
+        nodes.append(node["Node Type"] + (f" using {node['Index Name']}" if "Index Name" in node else ""))
+        stack.extend(node.get("Plans", []))
+    return nodes
+
+
+def keyword(conn, question, k=10):
+    return _rows(conn.execute(_KEYWORD, {"q": normalize(question), "k": k}))
+
+
+def rrf_fuse(lists, k=10, rrf_k=RRF_K):
+    """Reciprocal Rank Fusion of {name: ranked results}: a chunk scores 1 / (rrf_k + rank) in each list it
+    appears in, summed. Each result keeps its rank in every list as <name>_rank (None if absent)."""
+    fused = {}
+    for name, results in lists.items():
+        for r in results:
+            entry = fused.setdefault(r["id"], {**r, "score": 0.0, **{f"{n}_rank": None for n in lists}})
+            entry["score"] += 1 / (rrf_k + r["rank"])
+            entry[f"{name}_rank"] = r["rank"]
+    ranked = sorted(fused.values(), key=lambda r: (-r["score"], r["id"]))[:k]
+    return [dict(r, rank=i) for i, r in enumerate(ranked, 1)]
+
+
+def hybrid(conn, client, question, k=10, candidates=CANDIDATES, vector=None):
+    return rrf_fuse({"semantic": semantic(conn, client, question, candidates, vector),
+                     "keyword": keyword(conn, question, candidates)}, k)
+
+
+def search_all(conn, client, question, k=10):
+    vector = client.embed([normalize(question)])[0]       # embed once, use for both semantic and hybrid
+    return {"semantic": semantic(conn, client, question, k, vector),
+            "keyword": keyword(conn, question, k),
+            "hybrid": hybrid(conn, client, question, k, vector=vector)}
+
+
+def flags(r):
+    return " ".join(f for f, on in (("note", r["is_note"]), ("stub", r["is_stub"])) if on) or "-"
+
+
+def _cell(r, width):
+    if r is None:
+        return []
+    lines = [f"{r['rank']:>2}. {r['id']}   score {r['score']:.4f}"]
+    lines += textwrap.wrap(r["citation"], width, max_lines=2, placeholder="…")
+    lines += textwrap.wrap(f"{r['article'] or '-'}   [{flags(r)}]", width, max_lines=1, placeholder="…")
+    lines += textwrap.wrap(r["text"][:150], width)
+    return lines
+
+
+def print_side_by_side(question, results, k=10):
+    width = max(36, (shutil.get_terminal_size((190, 40)).columns - 6) // 3)
+    names = list(results)
+    print(f"\n{question}\n")
+    print(" │ ".join(name.upper().ljust(width) for name in names))
+    print("─┼─".join("─" * width for _ in names))
+    for i in range(k):
+        cells = [_cell(results[n][i] if i < len(results[n]) else None, width) for n in names]
+        for line in range(max(map(len, cells))):
+            print(" │ ".join((c[line] if line < len(c) else "").ljust(width) for c in cells))
+        print("─┼─".join("─" * width for _ in names))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Search the labour-law chunks three ways and compare.")
+    parser.add_argument("question")
+    parser.add_argument("-k", type=int, default=10, help="results per method (default 10)")
+    args = parser.parse_args()
+    with connect() as conn:
+        print_side_by_side(args.question, search_all(conn, ModelClient.from_settings(), args.question, args.k), args.k)
+
+
+if __name__ == "__main__":
+    main()

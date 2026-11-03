@@ -1,1 +1,2 @@
 duckdb==2.0.0
+psycopg[binary]==3.3.7

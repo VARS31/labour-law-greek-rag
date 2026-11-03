@@ -2,14 +2,16 @@
 
 import unittest
 
-from labour_rag.chunking import Piece, chunk_document, merge_small, move_trailing_headings, split_document, split_words
+from labour_rag.chunking import (Piece, chunk_document, merge_small, move_trailing_headings, note_words,
+                                 repeal_sentences, split_document, split_words)
 from labour_rag.header import citation, parse_header
 
 TYPICAL = ("14. ΝΟΜΟΣ υπ’ αριθ. 751 της 4/10 Αυγ. 1948 Περί προστασίας των απολυομένων εκ των υπηρετούντων εις "
            "τας τάξεις του στρατού κατά την διάρκειαν της παρούσης κατά του Έθνους συμμοριακής δράσεως. "
            "Τροποποιηθείς και συμπληρωθείς υπό των α)Ν.Δ. 1196 της 7/18 Οκτωβρ. 1949. "
            "Κατηργήθη δια του άρθρ. 12 Α.Ν. 1836/1951 κατωτ. αριθ. 15.")
-DOC = {"doc_id": 15034, "split": "train", "volume": "ΕΡΓΑΤΙΚΗ ΝΟΜΟΘΕΣΙΑ", "chapter": "Κ", "subject": "Σ"}
+DOC = {"doc_id": 15034, "split": "train", "volume": "ΕΡΓΑΤΙΚΗ ΝΟΜΟΘΕΣΙΑ", "chapter": "ΔΙΟΙΚΗΣΗ ΕΡΓΑΣΙΑΣ",
+       "subject": "ΟΡΓΑΝΙΣΜΟΣ ΥΠΟΥΡΓΕΙΟΥ ΕΡΓΑΣΙΑΣ"}
 
 
 class Header(unittest.TestCase):
@@ -87,12 +89,74 @@ class Records(unittest.TestCase):
         self.assertEqual(record["repeal_sentences"], ["Κατηργήθη δια του άρθρ. 12 Α.Ν. 1836/1951 κατωτ. αριθ. 15."])
         self.assertTrue(record["embed_text"].startswith("Ν. 751/1948, Περί προστασίας των απολυομένων"))
 
-    def test_stub(self):
+    def test_stub_without_number_uses_the_fallback_source(self):
         text = "2. ΑΝΑΓΚ.ΝΟΜΟΣ της 11/12 Νοεμ. 1935 Περί Οργανισμού του Υπουργείου Εργασίας."
         (record,) = chunk_document(DOC, text, parse_header(text))
         self.assertTrue(record["is_stub"])
         self.assertFalse(record["is_note"])
-        self.assertEqual(record["embed_text"].split("\n")[0], "Α.Ν. (1935), Περί Οργανισμού του Υπουργείου Εργασίας")
+        self.assertTrue(record["citation_fallback"])
+        self.assertEqual(record["embed_text"].split("\n")[0],
+                         "Α.Ν. «Περί Οργανισμού του Υπουργείου Εργασίας» (ΔΙΟΙΚΗΣΗ ΕΡΓΑΣΙΑΣ, 1935)")
+
+    def test_headerless_document_names_title_and_chapter(self):
+        text = ("Ελάχιστες προδιαγραφές για τη βελτίωση της προστασίας των εργαζομένων στις εξορυκτικές βιομηχανίες. "
+                "Άρθρο 1 Αντικείμενο Το παρόν διάταγμα ορίζει τις ελάχιστες προδιαγραφές για τους χώρους εργασίας.")
+        records = chunk_document(DOC, text, parse_header(text))
+        self.assertTrue(all(r["citation_fallback"] for r in records))
+        self.assertEqual(records[-1]["embed_text"].split("\n")[0],
+                         "«Ελάχιστες προδιαγραφές για τη βελτίωση της προστασίας των εργαζομένων στις εξορυκτικές "
+                         "βιομηχανίες» (ΔΙΟΙΚΗΣΗ ΕΡΓΑΣΙΑΣ), Προοίμιο, Άρθρο 1")
+
+
+class Notes(unittest.TestCase):
+    """is_note: only when the note is the main content (real snippets from volume 41)."""
+
+    def share(self, body):
+        return note_words(body) / len(body.split())
+
+    def test_run_of_numbered_bracket_notes(self):      # glc-00401-001
+        body = ("(Προστίθεται φράσις εν τέλει της πρώτης περιόδου της παρ. 1 άρθρ. 1 Α.Ν. 99/67 (σελ. 100,3)). "
+                "2.(Διαγράφεται η πρώτη περίοδος της παρ. 3 άρθρ. 1 Α.Ν. 99/67).")
+        self.assertEqual(self.share(body), 1)
+
+    def test_followed_by_more_editorial_sentences(self):     # glc-05131-000
+        body = ("Τροποποιήθηκε από την υπ’ αριθ. 108285/19-30 Μαρτ. 1999 (ΦΕΚ Β΄ 272) απ. Υπ. Εργασ. και Κοιν. "
+                "Ασφαλίσεων. Επίσης τροποποιήθηκε και συμπληρώθηκε από την 119442/11-30 Δεκ. 1999 (ΦΕΚ Β΄ 2243).")
+        self.assertEqual(self.share(body), 1)
+
+    def test_source_reference_before_law_text_is_not_a_note(self):     # glc-34649-016
+        body = ("(άρθρ. 18 Δ. 23 Νοεμ. 1928, άρθρ. 7 ν. 4388). 1.Κατά τας Κυριακάς και τας εορτάς των Χριστουγέννων "
+                "και του Ευαγγελισμού τα κουρεία μένουν κλειστά καθ’ όλην την ημέραν.")
+        self.assertLess(self.share(body), 0.5)
+
+    def test_lost_bracket_counts_only_its_first_sentence(self):     # glc-13904-015
+        first = ("(Προέβλεπε την ίδρυσιν Ειδικού Γραφείου Προστασίας Π.Π. παρά τω Τμήματι Ανεργίας του Υπουργείου "
+                 "Εργασίας.")
+        body = (first + " Η αρμοδιότης αύτη υπήχθη εις το Τμήμα Τοποθετήσεως εις Εργασίας δια του Άρθρον 29 "
+                "1.Διευθυνταί ή μέλη του διοικητικού συμβουλίου ανωνύμων εταιριών τιμωρούνται δια χρηματικής "
+                "ποινής (10.000 έως 50.000 δραχ.), εν υποτροπή δε και δια φυλακίσεως. " * 2 + "(κατωτ. αρ. 9).")
+        self.assertEqual(note_words(body), len(first.split()))
+
+
+class Repeals(unittest.TestCase):
+    def test_bracketed_note(self):     # glc-00000-000
+        text = ("μεταλλικόν μόλυβδον. Άρθρ.13-19.-(Καταργήθηκαν από την παρ. 3 άρθρ. 17 του Π.Δ. 94/10-22 Απρ. 1987 "
+                "(ΦΕΚ Α΄ 54), ανωτ. σελ. 306,823). Άρθρ.20.-Η ισχύς")
+        self.assertEqual(repeal_sentences(text), ["(Καταργήθηκαν από την παρ. 3 άρθρ. 17 του Π.Δ. 94/10-22 Απρ. 1987 "
+                                                  "(ΦΕΚ Α΄ 54), ανωτ. σελ. 306,823)"])
+
+    def test_only_the_short_clause_around_the_verb(self):     # glc-45189-025
+        text = ("1.-Η Διεύθυνση Όρων Εργασίας απαρτίζεται από τα εξής Τμήματα: α)Τμήμα Ατομικής Σύμβασης Εργασίας "
+                "β)Τμήμα Χρονικών Ορίων Εργασίας γ)(Τμήμα Κανονισμών Εργασίας) Το μέσα ( ) Τμήμα Κανονισμών Εργασίας "
+                "(περ. γ΄) καταργήθηκε & οι αρμοδιότητές του μεταφέρθηκαν στα Τμήματα Ατομικής Σύμβασης Εργασίας. "
+                "δ)Τμήμα Ισότητας Φύλων 2.-Οι αρμοδιότητες")
+        (sentence,) = repeal_sentences(text)
+        self.assertTrue(sentence.startswith("γ)(Τμήμα Κανονισμών Εργασίας)"))
+        self.assertTrue(sentence.endswith("Ατομικής Σύμβασης Εργασίας."))
+
+    def test_abbreviation_does_not_end_the_sentence(self):     # glc-13034-000
+        text = "Εκ των ανωτέρω, οι υπό στοιχ. β΄ και δ΄ κατηργήθησαν και δια της Πράξεως Υπουργ. Συμβουλίου αριθ. 325."
+        self.assertEqual(repeal_sentences(text), [text])
 
 
 if __name__ == "__main__":

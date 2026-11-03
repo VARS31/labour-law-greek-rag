@@ -23,7 +23,7 @@ Same list as README.md "Status"; keep the two in sync.
 - 1A: clean and chunk (**done**, [docs/chunking-report.md](docs/chunking-report.md), output
   `data/processed/labour_chunks.jsonl`; non-programmer tour in [docs/code-tour.md](docs/code-tour.md))
 - 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app uses 5432), embeddings with a local
-  Ollama model, semantic + accent-insensitive keyword search
+  Ollama model, semantic + accent-insensitive keyword search (**done**, [docs/search-report.md](docs/search-report.md))
 - 1C: one-shot baseline: search once, answer with citations, citations checked in code
 - 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics
 - 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
@@ -34,7 +34,7 @@ Same list as README.md "Status"; keep the two in sync.
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 1B.
+Next: Phase 1C.
 
 - **After each phase, update the README status, layout and diagram.**
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
@@ -62,6 +62,26 @@ Next: Phase 1B.
 - Build the chunks: `.venv/bin/python -I scripts/build_chunks.py` (writes `data/processed/labour_chunks.jsonl`,
   `data/processed/running_titles.json` and regenerates `docs/chunking-report.md`; never edit the report by hand).
 - Tests: `.venv/bin/python -m unittest discover -s tests -t .` (stdlib unittest; pytest is not installed).
+
+## Database and search (Phase 1B)
+
+- Docker CLI is not on the default PATH here: `export PATH="$HOME/.docker/bin:$PATH"` before `docker compose …`.
+- `docker compose up -d` starts `labour-law-db` (pgvector/pgvector:0.8.6-pg17) on 127.0.0.1:5433, data in the
+  named volume `pgdata`. Settings and password are in `.env` (gitignored); `.env.example` is the template.
+- Schema = numbered files in `sql/`, each safe to re-run; `labour_rag.db.apply_schema` runs them in order. A new
+  schema change gets the next number.
+- After editing `sql/greek_labour.stop` (lowercase, no accents, final ς kept): `docker compose restart` (a
+  single-file bind mount keeps the old file if an editor replaced it), then
+  `.venv/bin/python -m labour_rag.load --rewrite`, which recomputes the stored `fts` column without re-embedding
+  (a normal load leaves unchanged rows alone).
+- Semantic search sets `enable_seqscan = off` around its query: vectors are TOASTed and the planner ignores that
+  cost, so otherwise it never uses the HNSW index (pgvector README, "Why isn't a query using an index?").
+- Load: `.venv/bin/python -m labour_rag.load` (upsert by id, embeds only new/changed chunks, deletes stale rows).
+- Search: `.venv/bin/python -m labour_rag.search "…"`. Report: `.venv/bin/python scripts/search_report.py`
+  (drops and rebuilds the HNSW index to measure; regenerates `docs/search-report.md`; hand-written comments live
+  in its `COMMENTS` dict and must be re-checked when results change).
+- All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`.
+- Installed Python packages: duckdb, psycopg[binary]. Ask before adding more.
 
 ## Code
 

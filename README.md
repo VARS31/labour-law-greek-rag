@@ -10,7 +10,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 
 - [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
 - [x] Phase 1A: Clean the labour-law texts and split them into chunks. Results are in [docs/chunking-report.md](docs/chunking-report.md).
-- [ ] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search.
+- [x] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search. Results are in [docs/search-report.md](docs/search-report.md).
 - [ ] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code.
 - [ ] Phase 2: Evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics.
 - [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
@@ -21,7 +21,7 @@ Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata
 
 ## How it works
 
-The data exploration and the cleaning and chunking are built. The rest is the plan.
+The index and the three search methods are built. The question flow is the plan.
 
 ```
 BUILD THE INDEX (once)
@@ -36,7 +36,7 @@ BUILD THE INDEX (once)
         |
         v
   embed with Ollama,
-  store in Postgres + pgvector .... planned   Phase 1B
+  store in Postgres + pgvector .... built     Phase 1B
 
 
 ANSWER A QUESTION
@@ -47,7 +47,7 @@ ANSWER A QUESTION
   rewriter ........................ planned   Phase 3  <-----+
         |                                                    |
         v                                                    |
-  search tools .................... planned   Phase 1B       |
+  search tools .................... built     Phase 1B       |
         |                                                    |
         v                                                    |
   judge: enough to answer? ........ planned   Phase 3        |
@@ -71,22 +71,29 @@ Phase 4 compares the two versions.
 | `README.md` | This file. |
 | `CLAUDE.md` | Project notes and working rules for Claude Code. |
 | `LICENSE` | MIT licence for the code in this repository. |
-| `requirements.txt` | Python packages. Only duckdb for now. |
+| `requirements.txt` | Python packages: duckdb (reads the dataset) and psycopg (talks to Postgres). |
+| `docker-compose.yml` | Postgres 17 with pgvector, on port 5433. |
+| `.env.example` | Template for `.env`: database password, ports and the Ollama model names. |
+| `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
 | `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
+| `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `labour_rag/` | Shared Python code: text normalisation, page-noise removal, header parsing, article detection, chunking. |
+| `labour_rag/` | Shared Python code: cleaning and chunking (Phase 1A), and the settings, database, model client, loader and search (Phase 1B). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
+| `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
 | `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
 | `data/` | The downloaded dataset, script output and the chunks file `data/processed/labour_chunks.jsonl`. Created during setup, not in git. |
 | `.venv/` | Local Python environment. Created during setup, not in git. |
+| `.env` | Your local settings with the database password. Created during setup, not in git. |
 
 ## Setup and running
 
-You need Python 3.11 (other recent versions will probably work), curl and about 500 MB of free disk
-space. Ollama and Postgres are not needed yet.
+You need Python 3.11 (other recent versions will probably work), curl, about 2 GB of free disk space,
+[Docker Desktop](https://www.docker.com/products/docker-desktop/) and [Ollama](https://ollama.com). You
+don't need a local Postgres: the database runs in Docker.
 
 Run every command below from the repository root, the folder that contains this README.
 
@@ -132,7 +139,41 @@ Run every command below from the repository root, the folder that contains this 
    `data/processed/running_titles.json` (the page titles it learned to remove) and
    `docs/chunking-report.md`.
 
-5. Run the tests:
+5. Start the database. First create `.env` from the template and choose a password:
+
+   ```bash
+   cp .env.example .env        # then edit POSTGRES_PASSWORD in .env
+   docker compose up -d        # starts Postgres + pgvector on port 5433
+   docker compose ps           # wait until the status says "healthy"
+   ```
+
+   If your shell says `docker: command not found` although Docker Desktop is running, add its command-line
+   tools to your path first: `export PATH="$HOME/.docker/bin:$PATH"`.
+
+   Other useful commands: `docker compose stop` stops the database and keeps the data;
+   `docker compose down -v` deletes the database and all its data.
+
+6. Get the embedding model and load the chunks:
+
+   ```bash
+   ollama pull bge-m3
+   .venv/bin/python -m labour_rag.load
+   ```
+
+   This creates the tables (`sql/`), stores every chunk and embeds it with bge-m3. It shows its progress.
+   Embedding the 5,740 chunks took about 5 minutes on an Apple M5. Running it again is safe and takes a few
+   seconds: it only embeds chunks that are new or changed.
+
+7. Search:
+
+   ```bash
+   .venv/bin/python -m labour_rag.search "κανονική άδεια εργαζομένων"
+   ```
+
+   It prints the top 10 of semantic, keyword and hybrid search side by side. To measure everything again
+   and rewrite `docs/search-report.md`, run `.venv/bin/python scripts/search_report.py`.
+
+8. Run the tests:
 
    ```bash
    .venv/bin/python -m unittest discover -s tests -t .
@@ -173,4 +214,9 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
 - **Old and new Greek mixed.** Katharevousa and demotic appear side by side, and accents are often
   missing, so keyword search has to ignore accents.
 - **Volume 41 only.** Related rules in other volumes are left out, for example seafarers' contracts
-  (merchant shipping), unemployment benefits (social insurance) and civil servants.
+  (merchant shipping), unemployment benefits (social insurance) and civil servants. The main decree on
+  safety at building sites (Π.Δ. 1073/1981) is also in another volume.
+- **Everyday words versus legal words.** Search can miss a law that uses different words from the
+  question: "οικοδομές" doesn't find the act on "εργοτάξια". Some acts are only a header without their
+  text. Near-identical clauses (from ILO conventions, or decisions repeated every year) can fill a result
+  list. Details are in [docs/search-report.md](docs/search-report.md).

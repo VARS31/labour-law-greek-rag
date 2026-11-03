@@ -52,6 +52,11 @@ class Strip(unittest.TestCase):
         clean, _ = strip_page_noise(text, {}, weak_titles=titles("Καταγγελία συμβάσεως εργασίας"))
         self.assertEqual(clean, "Καταγγελία συμβάσεως εργασίας (Αριθ. υποδείγμ. 1) Προς τον")
 
+    def test_code_with_subject_range(self):     # glc-02160-000
+        clean, _ = strip_page_noise("απασχολουμένους μισθωτούς. 15.Δ.ζ-η.6-10 Επίδομα Πάσχα – Χριστουγέννων 109",
+                                    titles("Επίδομα Πάσχα – Χριστουγέννων"))
+        self.assertEqual(clean, "απασχολουμένους μισθωτούς.")
+
     def test_code_with_letter_suffix(self):
         clean, _ = strip_page_noise("της Κυβερνήσεως. 15.Λ.α.6α Υγιεινή και ασφάλεια χώρων εργασίας και εργαζομένων "
                                     "Άρθρ.3.-Όταν", titles("Υγιεινή και ασφάλεια χώρων εργασίας και εργαζομένων"))

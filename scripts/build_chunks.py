@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))  # -I leaves the repo off sys.path
 
 from labour_rag import normalize as norm_mod  # noqa: E402
 from labour_rag.chunking import MAX_WORDS, MIN_WORDS, OVERLAP, STUB_WORDS, merge_small, split_document, split_words  # noqa: E402
-from labour_rag.chunking import chunk_document  # noqa: E402
+from labour_rag.chunking import NOTE_SHARE, _body, _short_title, chunk_document, note_words  # noqa: E402
 from labour_rag.dataset import LABOUR_VOLUME, load_documents  # noqa: E402
 from labour_rag.header import citation, parse_header  # noqa: E402
 from labour_rag.noise import label_titles, learn_running_titles, strip_page_noise  # noqa: E402
@@ -28,6 +28,24 @@ from labour_rag.normalize import normalize, normalize_with_counts  # noqa: E402
 
 PHASE0_ESTIMATE = 5301
 SEED = 42
+
+# The Phase 1A rules, kept only to show before/after numbers in the report's "Fixes in Phase 1B" section.
+_OLD_NOTE = re.compile(r"\(|(?:Κατηργήθη|Καταργήθηκ|Τροποποιήθηκ|Τροποποιηθ|Ετροποποιήθη|Αντικατεστάθη|"
+                       r"Αντικαταστάθηκ|Συμπληρώθηκ|Συνεπληρώθη|Περιελήφθη|Ανεστάλη|Παραλείπ|Βλ\.|Ίδε)")
+_OLD_SENTENCE_SPLIT = re.compile(r"(?<=[.;])\s+(?=[«(]?[Α-ΩΆ-Ώ])")
+_REPEAL_VERB = re.compile(r"\b(?:[Κκ]ατηργήθη(?:σαν)?|[Κκ]αταργήθηκ(?:ε|αν)|[Κκ]αταργηθ(?:είς|έν|έντα|είσα|είσαι))\b")
+
+
+def old_repeal_sentences(text):
+    return [s.strip()[:400] for s in _OLD_SENTENCE_SPLIT.split(text) if _REPEAL_VERB.search(s)]
+
+
+def old_header(record, meta):
+    """The Phase 1A embed header: citation (if any), article, short title."""
+    shown = record["article"]
+    if record["parts"] > 1:
+        shown = f"{shown} (μέρος {record['part']}/{record['parts']})" if shown else f"μέρος {record['part']}/{record['parts']}"
+    return ", ".join(x for x in (citation(meta), shown, _short_title(meta.get("title"))) if x)
 
 
 # --- markdown helpers ---------------------------------------------------------------------------
@@ -82,6 +100,20 @@ def run(raw_dir):
         method, pieces = split_document(clean, noise["headings"])
         merged = merge_small(pieces)
         chunks = chunk_document(d, clean, meta)
+        # Before/after of the Phase 1B fixes. Records come out piece by piece, window by window.
+        i = 0
+        for piece in merged:
+            body = _body(piece, meta)
+            for _ in split_words(piece.text.split()):
+                r = chunks[i]
+                noise.setdefault("fixes", []).append({
+                    "id": r["id"], "words": r["words"], "new_note": r["is_note"],
+                    "old_note": bool(_OLD_NOTE.match(body or "x")),
+                    "note_share": note_words(body) / max(1, len(body.split())),
+                    "old_repeal": old_repeal_sentences(r["text"]), "new_repeal": r["repeal_sentences"],
+                    "old_header": old_header(r, meta), "new_header": r["embed_text"].split("\n")[0],
+                    "fallback": r["citation_fallback"], "text": r["text"]})
+                i += 1
         records.extend(chunks)
         per_doc.append({"doc": d, "raw": d["text"], "normalized": text, "clean": clean, "meta": meta,
                         "method": method, "pieces": len(pieces), "merged": len(pieces) - len(merged),
@@ -166,7 +198,8 @@ def chunk_block(r, title=None):
         "| Field | Value |", "|---|---|",
         f"| Document | {r['doc_id']} ({r['split']}) |",
         f"| Chapter / subject | {esc(r['chapter'])} / {esc(r['subject'])} |",
-        f"| Act | {esc(citation(r) or '-')} ({r['act_type'] or 'type not found'}), ΦΕΚ {r['fek'] or '-'} |",
+        f"| Source | {esc(r['citation'])}{' (fallback: no act number)' if r['citation_fallback'] else ''} |",
+        f"| Act | {r['act_type'] or 'type not found'}, ΦΕΚ {r['fek'] or '-'} |",
         f"| Article | {esc(r['article'] or '-')} (kind: {r['kind']}, method: {r['method']}, part {r['part']}/{r['parts']}) |",
         f"| Words | {r['words']} |",
         f"| Flags | {', '.join(flags) or 'none'} |",
@@ -175,6 +208,84 @@ def chunk_block(r, title=None):
         lines.append(f"| Repeal sentence | {esc(r['repeal_sentences'][0][:200])} |")
     lines += ["", "Text to embed:", "", quote(r["embed_text"].replace("\n", " ⏎ ")), ""]
     return "\n".join(lines)
+
+
+def write_fixes(add, fixes, records):
+    """Section 7: the three chunking fixes made at the start of Phase 1B, with before/after numbers."""
+    by_id = {f["id"]: f for f in fixes}
+    rng = random.Random(SEED)
+    add("## 7. Fixes made at the start of Phase 1B\n")
+    add("Three rules were tightened before loading the chunks into the database. The *before* numbers come "
+        "from the Phase 1A rules, run again on the same chunks.\n")
+
+    fallback = [f for f in fixes if f["fallback"]]
+    no_type = sum(1 for r in records if r["citation_fallback"] and not r["act_abbr"])
+    add("### Every chunk names its source\n")
+    add(f"{n(len(fallback))} of {n(len(fixes))} chunks come from documents without an act number in the header "
+        f"({n(no_type)} of them without even an act type). Their header used to start with just the article "
+        "label, so the embedded text didn't say where it came from. Now it uses a fallback: act type (if known), "
+        "the title in «», and the chapter and year in brackets. The same text is stored in the new `citation` "
+        "field, and `citation_fallback` is `true` for these chunks.\n")
+    examples = [by_id["glc-06383-019"]] if "glc-06383-019" in by_id else []
+    examples += rng.sample([f for f in fallback if f not in examples], 2)
+    for f in examples:
+        add(f"- `{f['id']}`:")
+        add(f"  - before: `{f['old_header']}`")
+        add(f"  - after: `{f['new_header']}`")
+    add("")
+
+    old_notes = [f for f in fixes if f["old_note"]]
+    new_notes = [f for f in fixes if f["new_note"]]
+    add("### `is_note` only when the note is the main content\n")
+    add(f"The old rule flagged a chunk when its text *started* with a bracket or an editorial verb. That also "
+        "caught real law text that only opens with a short source reference (\"Άρθρον 18 (άρθρ. 18 Δ. 23 Νοεμ. "
+        "1928, άρθρ. 7 ν. 4388). 1.Κατά τας Κυριακάς …\"), and chunks where the source lost a closing bracket. "
+        f"Now the notes at the start of a chunk are measured, and the chunk is flagged only when they cover at "
+        f"least {NOTE_SHARE:.0%} of it. A bracket that doesn't close within 60 words is treated as lost and "
+        "counts only up to the end of its first sentence.\n")
+    add("| | Before | After |\n|---|---:|---:|")
+    add(f"| Chunks flagged as notes | {n(len(old_notes))} | {n(len(new_notes))} |")
+    add(f"| … of which over 150 words | {n(sum(f['words'] > 150 for f in old_notes))} | "
+        f"{n(sum(f['words'] > 150 for f in new_notes))} |")
+    add(f"| Unflagged by the new rule | | {n(sum(f['old_note'] and not f['new_note'] for f in fixes))} |")
+    add(f"| Newly flagged (e.g. \"Επίσης τροποποιήθηκε …\", \"Εκδόθηκαν: α)… β)…\") | | "
+        f"{n(sum(f['new_note'] and not f['old_note'] for f in fixes))} |")
+    add("")
+    big = [f for f in old_notes if f["words"] > 150]
+    checked = [by_id["glc-13904-015"]] if "glc-13904-015" in by_id else []
+    checked += rng.sample([f for f in big if f not in checked], min(4, len(big) - len(checked)))
+    add("Five of the old notes over 150 words, checked by hand (the first is the one with the lost bracket):\n")
+    add("| Chunk | Words | Share that is note | Now | Start of the text |\n|---|---:|---:|---|---|")
+    for f in checked:
+        add(f"| `{f['id']}` | {f['words']} | {f['note_share']:.0%} | {'note' if f['new_note'] else 'law text'} | "
+            f"{esc(f['text'][:150])}… |")
+    add("")
+
+    old_rep = [s for f in fixes for s in f["old_repeal"]]
+    new_rep = [s for f in fixes for s in f["new_repeal"]]
+
+    def lengths(sentences):
+        w = sorted(len(s.split()) for s in sentences) or [0]
+        return f"{statistics.median(w):.0f} / {pct(w, 90)} / {w[-1]}"
+
+    add("### Repeal sentences: only the short sentence around the verb\n")
+    add("The old rule kept the whole \"sentence\" around a repeal verb, but sentence ends are rare in this text, "
+        "so it often grabbed a long, unrelated stretch. Now it keeps a short window: from the start of the "
+        "sentence, a colon, a list item (`γ)`) or an open bracket, at most 15 words before the verb, to the end "
+        "of the sentence or the closing bracket, at most 25 words after it. Abbreviations such as \"Υπουργ.\" "
+        "no longer count as sentence ends.\n")
+    add("| | Before | After |\n|---|---:|---:|")
+    add(f"| Sentences kept | {n(len(old_rep))} | {n(len(new_rep))} |")
+    add(f"| Chunks with at least one | {n(sum(bool(f['old_repeal']) for f in fixes))} | "
+        f"{n(sum(bool(f['new_repeal']) for f in fixes))} |")
+    add(f"| Words per sentence: median / 90% / longest | {lengths(old_rep)} | {lengths(new_rep)} |")
+    add("")
+    if "glc-45189-025" in by_id:
+        f = by_id["glc-45189-025"]
+        add("Example, `glc-45189-025`:\n")
+        add(f"- before: `{esc(f['old_repeal'][0][:300])}…`" if f["old_repeal"] else "- before: (none)")
+        add(f"- after: `{esc(f['new_repeal'][0])}`" if f["new_repeal"] else "- after: (none)")
+        add("")
 
 
 def write_report(path, docs, normalized, norm_counts, titles, weak, noise, per_doc, records):
@@ -363,13 +474,18 @@ def write_report(path, docs, normalized, norm_counts, titles, weak, noise, per_d
         ("volume, chapter, subject", "the dataset labels (names)"),
         ("act_type, act_abbr, act_number, year, fek", "from the header, when found"),
         ("title", "title of the act, from the header"),
+        ("citation", "how the chunk names its source: `Ν. 2994/1922`, or, without an act number, act type + «title» "
+                     "+ (chapter, year)"),
+        ("citation_fallback", "`true` when the second form was needed"),
         ("method, kind", "how the document was cut, and what this chunk is (preamble / article / …)"),
         ("article, article_numbers", "label like `Άρθρο 5` or `Άρθρα 13-19`, and the numbers as integers"),
         ("part, parts", "window number when a long piece was cut, e.g. 2 of 3"),
         ("words", "length of the chunk text"),
         ("is_stub", f"the whole document is under {STUB_WORDS} words"),
-        ("is_note", "an editorial note, not law text (starts with `(` or with e.g. `Κατηργήθη`, `Τροποποιηθείς`)"),
-        ("repeal_sentences", "raw sentences like `Κατηργήθη δια του άρθρ. 12 Α.Ν. 1836/1951 …`, kept for later"),
+        ("is_note", "the chunk is mainly an editorial note, not law text: notes (brackets, or sentences starting "
+                    "with e.g. `Κατηργήθη`, `Τροποποιηθείς`) cover at least half of it"),
+        ("repeal_sentences", "the short sentence around each past-tense repeal verb, e.g. `Κατηργήθη δια του άρθρ. 12 "
+                             "Α.Ν. 1836/1951 κατωτ. αριθ. 15.`, kept for later"),
         ("text", "the cleaned chunk text"),
         ("embed_text", "short header + newline + text; this is what will be embedded"),
     ]:
@@ -397,6 +513,8 @@ def write_report(path, docs, normalized, norm_counts, titles, weak, noise, per_d
         add(chunk_block(r, title))
         add(why + "\n")
 
+    write_fixes(add, noise["fixes"], records)
+
     add("## Known limits of this step\n")
     add("- Running titles that appear only once and are not chapter or subject names stay in the text. "
         "That is the safe side: a few extra words instead of lost law text.")
@@ -408,6 +526,10 @@ def write_report(path, docs, normalized, norm_counts, titles, weak, noise, per_d
         "\"Εθν.\") don't end it, but a longer one (\"Κοινων.\") still can.")
     add("- A moved heading is recognised only as an unfinished phrase (no full stop) of at most 15 words "
         "at the end of a piece; a heading that contains an abbreviation with a full stop stays where it is.")
+    add("- `is_note` recognises editorial sentences by how they start (a bracket or a verb such as "
+        "\"Κατηργήθη\"). An editorial sentence that starts differently (\"Ο δια του ανωτέρω Β.Δ. … συσταθείς …\") "
+        "doesn't count, so a few chunks that are mostly notes stay unflagged. That errs on the side of keeping "
+        "law text visible.")
     Path(path).write_text("\n".join(L) + "\n", encoding="utf-8")
 
 

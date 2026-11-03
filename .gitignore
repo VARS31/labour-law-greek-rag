@@ -6,3 +6,6 @@ data/
 __pycache__/
 
 .DS_Store
+
+# Local settings with the database password
+.env
