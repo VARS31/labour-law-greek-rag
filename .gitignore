@@ -1,0 +1,8 @@
+# Downloaded dataset and generated exploration output (never committed)
+data/
+
+# Local Python environment
+.venv/
+__pycache__/
+
+.DS_Store
