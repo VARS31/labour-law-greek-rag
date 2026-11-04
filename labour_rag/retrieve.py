@@ -45,7 +45,7 @@ def select(results, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT):
     return [dict(r, n=i) for i, (r, _) in enumerate(kept, 1)], removed
 
 
-def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL):
+def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL, max_per_document=MAX_PER_DOCUMENT):
     """The k chunks for a question, numbered n = 1..k, plus what was removed and the time of each step."""
     times = {}
     started = time.perf_counter()
@@ -57,6 +57,6 @@ def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL):
     times["hybrid search"] = time.perf_counter() - started
 
     started = time.perf_counter()
-    kept, removed = select(results, k)
+    kept, removed = select(results, k, max_per_document)
     times["remove repeats"] = time.perf_counter() - started
     return kept, removed, times

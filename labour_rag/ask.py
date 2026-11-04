@@ -14,7 +14,7 @@ from . import citations
 from .config import ROOT
 from .db import connect, friendly_errors
 from .model_client import ModelClient
-from .retrieve import CONTEXT_CHUNKS, retrieve
+from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, retrieve
 
 PROMPT_FILE = ROOT / "prompts/answer.md"
 NOTE_FILE = ROOT / "prompts/closing_note.md"
@@ -54,9 +54,9 @@ def ensure_closing_note(answer):
     return f"{answer.strip()}\n\n{note}", True
 
 
-def ask(conn, client, question, k=CONTEXT_CHUNKS):
+def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT):
     """Everything about one answer: the chunks, what was removed, the answer, the check and the timings."""
-    chunks, removed, times = retrieve(conn, client, question, k)
+    chunks, removed, times = retrieve(conn, client, question, k, max_per_document=max_per_document)
     messages = [{"role": "system", "content": system_prompt()},
                 {"role": "user", "content": user_message(question, chunks)}]
 
@@ -88,7 +88,7 @@ def print_result(result, show_chunks=False):
     if result["removed"]:
         dupes = sum(r["reason"] == "near-duplicate" for r in result["removed"])
         print(f"  (left out while choosing: {dupes} near-duplicate(s), "
-              f"{len(result['removed']) - dupes} over the 2-per-document limit)")
+              f"{len(result['removed']) - dupes} over the per-document limit)")
     check = result["check"]
     print("\nCITATION CHECK: " + ("OK" if check["ok"] else "FAILED"))
     print(f"  {len(check['citations'])} source(s) cited, {len(check['quotes'])} quote(s), "

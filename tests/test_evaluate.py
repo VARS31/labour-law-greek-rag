@@ -1,0 +1,150 @@
+"""Phase 2 parts that run without a database or model: matching key facts and scoring."""
+
+import unittest
+
+from labour_rag.evaluate import first_rank, gold_documents, problem, score_answer, score_retrieval, summarise_group
+from labour_rag.key_facts import fact_present, stem
+from scripts.check_eval_set import copied_run, quote_in
+
+NOTE = "Σημείωση: Οι πηγές φτάνουν μέχρι το 1999."
+
+
+class WordForms(unittest.TestCase):
+    def test_endings_are_ignored(self):
+        for a, b in (("αποδοχες", "αποδοχων"), ("απολυση", "απολυσης"), ("μηνες", "μηνων"), ("εβδομαδες", "εβδομαδα"),
+                     ("εργοδοτης", "εργοδοτη")):
+            self.assertEqual(stem(a), stem(b))
+
+    def test_salary_is_not_half(self):
+        self.assertNotEqual(stem("μισθος"), stem("μισος"))
+
+
+class Facts(unittest.TestCase):
+    def test_accents_case_and_word_forms(self):
+        self.assertTrue(fact_present("Αποδοχές αυξημένες κατά 100%", "ΟΙ ΑΠΟΔΟΧΩΝ ΑΥΞΗΜΕΝΩΝ κατα 100 %"))
+
+    def test_a_number_may_be_a_word_or_digits_or_part_of_a_word(self):
+        self.assertTrue(fact_present("Τρεις μήνες πριν από την απόλυση", "3 μήνες πριν την απόλυση [1]"))
+        self.assertTrue(fact_present("3 μήνες πριν από την απόλυση", "τριών μηνών πριν από την απόλυση"))
+        self.assertTrue(fact_present("Το πολύ μέσα σε δύο μήνες από την αίτηση", "εντός διμήνου από την αίτηση"))
+        self.assertTrue(fact_present("Πέντε χρόνια", "πενταετή χρόνια"))
+
+    def test_every_number_must_be_there(self):
+        self.assertFalse(fact_present("50% από 60 έως 120 ώρες", "50% από 60 ώρες τον χρόνο"))
+        self.assertFalse(fact_present("16 εβδομάδες συνολικά", "14 εβδομάδες συνολικά"))
+
+    def test_citation_markers_are_not_numbers(self):
+        self.assertFalse(fact_present("2 ώρες την ημέρα", "ώρες την ημέρα [2]"))
+
+    def test_times_on_a_twelve_hour_clock(self):
+        self.assertTrue(fact_present("Απαγορεύεται η εργασία μεταξύ 21:30 και 06:00",
+                                     "απαγορεύεται η εργασία μεταξύ 09.30 εσπερινής και 06.00 πρωινής"))
+        self.assertTrue(fact_present("Λήγει στις 06:00", "λήγει στις 6 το πρωί"))
+
+    def test_two_digit_year_of_a_law(self):
+        self.assertTrue(fact_present("Αφορά όσους υπάγονται στον Ν. 1648/86", "όσοι υπάγονται στον Ν. 1648/1986"))
+
+    def test_half_in_old_and_new_words(self):
+        self.assertTrue(fact_present("Το μισό της αποζημίωσης", "το ήμισυ της αποζημιώσεως"))
+
+    def test_half_is_required_like_a_number(self):
+        # Real model output: it gave the ceiling of one salary for the Easter bonus, which is half a salary.
+        self.assertFalse(fact_present("Μισός μηνιαίος μισθός για όσους παίρνουν μισθό",
+                                      "δεν μπορεί να ξεπεράσει έναν μηνιαίο μισθό για όσους παίρνουν μισθό"))
+
+    def test_with_a_number_half_of_the_other_words_is_enough(self):
+        self.assertTrue(fact_present("Προϋπόθεση 12 μήνες συνεχούς απασχόλησης", "μετά από 12 μήνες απασχόληση"))
+
+    def test_too_few_of_the_words_is_not_enough(self):
+        self.assertFalse(fact_present("Η ασθένεια πρέπει να αποδεικνύεται", "η σύμβαση λύεται"))
+
+
+ITEM = {"id": "x", "answerable": True, "key_facts": ["Τρεις μήνες", "Έγγραφη καταγγελία"],
+        "gold_sources": [{"chunk_ids": ["glc-41850-005"]}]}
+FUSED = [{"id": "glc-00001-000", "rank": 1, "semantic_rank": 1, "keyword_rank": None},
+         {"id": "glc-41850-005", "rank": 2, "semantic_rank": None, "keyword_rank": 7}]
+KEPT = [{"n": 1, "id": "glc-00001-000", "doc_id": 1}, {"n": 2, "id": "glc-41850-005", "doc_id": 41850}]
+
+
+class Scores(unittest.TestCase):
+    def test_gold_document_comes_from_the_chunk_id(self):
+        self.assertEqual(gold_documents(ITEM), {41850})
+
+    def test_rank_in_a_list(self):
+        self.assertEqual(first_rank(FUSED, {"glc-41850-005"}), 2)
+        self.assertEqual(first_rank(FUSED, {"glc-41850-005"}, "keyword_rank"), 7)
+        self.assertIsNone(first_rank(FUSED, {"glc-99999-000"}))
+
+    def test_retrieval(self):
+        score = score_retrieval(ITEM, FUSED, KEPT)
+        self.assertEqual((score["rank"], score["reciprocal_rank"], score["in_context"]), (2, 0.5, True))
+        missed = score_retrieval(ITEM, FUSED[:1], KEPT[:1])
+        self.assertEqual((missed["rank"], missed["reciprocal_rank"], missed["in_context"]), (None, 0.0, False))
+
+    def test_no_gold_chunks_means_no_retrieval_score(self):
+        self.assertIsNone(score_retrieval({"gold_sources": []}, FUSED, KEPT))
+
+    def test_answer(self):
+        check = {"citations": [2], "ok": True, "refusal": False}
+        answer = f"Τρεις μήνες νωρίτερα [2].\n\n{NOTE}"
+        score = score_answer(ITEM, answer, KEPT, check, NOTE)
+        self.assertEqual(score["fact_share"], 0.5)
+        self.assertTrue(score["gold_law_cited"])
+        check = {"citations": [1], "ok": True, "refusal": False}
+        self.assertFalse(score_answer(ITEM, answer, KEPT, check, NOTE)["gold_law_cited"])
+
+    def test_closing_note_does_not_count_for_a_fact(self):
+        item = {**ITEM, "key_facts": ["Το έτος 1999", "Το έτος 1999"]}
+        self.assertEqual(score_answer(item, f"Κείμενο.\n\n{NOTE}", KEPT, {"citations": [], "ok": True, "refusal": False},
+                                      NOTE)["fact_share"], 0)
+
+
+def record(answerable=True, in_context=True, fact_share=1.0, refused=False):
+    return {"answer": "…", "answerable": answerable, "times": {"model": 2.0}, "category": "single_source",
+            "retrieval": {"in_context": in_context, "in_top_50": in_context, "reciprocal_rank": 1.0 if in_context else 0.0,
+                          "gold_law_in_context": in_context, "semantic_rank": 1 if in_context else None,
+                          "keyword_rank": None},
+            "score": {"fact_share": fact_share if answerable else None, "refused": refused, "check_ok": True,
+                      "gold_law_cited": in_context}}
+
+
+class Problems(unittest.TestCase):
+    def test_a_full_answer_is_no_problem(self):
+        self.assertIsNone(problem(record()))
+
+    def test_gold_chunk_missing_is_a_search_problem(self):
+        self.assertEqual(problem(record(in_context=False, fact_share=0.0)), "search")
+
+    def test_gold_chunk_there_but_facts_missing_is_a_reading_problem(self):
+        self.assertEqual(problem(record(fact_share=0.5)), "reading")
+
+    def test_refusing_when_the_gold_chunk_was_there_is_a_reading_problem(self):
+        self.assertEqual(problem(record(refused=True)), "reading")
+
+    def test_answering_an_unanswerable_question_is_a_reading_problem(self):
+        self.assertEqual(problem(record(answerable=False)), "reading")
+        self.assertIsNone(problem(record(answerable=False, refused=True)))
+
+    def test_summary_counts(self):
+        group = summarise_group([record(), record(in_context=False, fact_share=0.0), record(answerable=False, refused=True)])
+        self.assertEqual((group["questions"], group["correct_refusals"], group["wrong_refusals"]), (3, 1, 0))
+        self.assertEqual((group["search_problems"], group["reading_problems"]), (1, 0))
+        self.assertEqual(group["fact_share"], 0.5)
+        self.assertEqual(round(group["recall_at_8"], 2), 0.67)
+
+
+class EvalSetChecks(unittest.TestCase):
+    TEXT = "Άρθρ.3.-Για κάθε περίοδο 24 ωρών, η ελάχιστη ανάπαυση δεν μπορεί να είναι κατώτερη από 12 συνεχείς ώρες."
+
+    def test_a_quote_may_skip_words_but_not_change_them(self):
+        self.assertTrue(quote_in("η ελαχιστη αναπαυση … 12 συνεχείς ώρες", self.TEXT))
+        self.assertFalse(quote_in("12 συνεχείς ώρες … η ελάχιστη ανάπαυση", self.TEXT))
+        self.assertFalse(quote_in("11 συνεχείς ώρες", self.TEXT))
+
+    def test_copied_wording_is_counted_in_whole_words(self):
+        self.assertEqual(copied_run("Πόσες συνεχείς ώρες ξεκούραση;", self.TEXT), 2)
+        self.assertEqual(copied_run("Η ελάχιστη ανάπαυση δεν μπορεί να είναι;", self.TEXT), 7)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -12,7 +12,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 1A: Clean the labour-law texts and split them into chunks. Results are in [docs/chunking-report.md](docs/chunking-report.md).
 - [x] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search. Results are in [docs/search-report.md](docs/search-report.md).
 - [x] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code. Results are in [docs/answer-report.md](docs/answer-report.md): none of the eight answers is fully right yet (four partly, four wrong), so the later phases have a clear baseline to beat.
-- [ ] Phase 2: Evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics.
+- [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
 - [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
 - [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
@@ -21,8 +21,8 @@ Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata
 
 ## How it works
 
-The index, the search and the one-shot answer with its citation check are built. The rewriter and the
-judge are the plan.
+The index, the search, the one-shot answer with its citation check and the measuring are built. The
+rewriter and the judge are the plan.
 
 ```
 BUILD THE INDEX (once)
@@ -59,11 +59,22 @@ ANSWER A QUESTION
         |
         v
   citation check .................. built     Phase 1C
+
+
+MEASURE IT
+
+  52 test questions with expected answers and sources
+        |
+        v
+  run search and answer,
+  count what came out right ....... built     Phase 2
+        |
+        v
+  compare one-shot and agentic .... planned   Phase 4
 ```
 
 The one-shot baseline from Phase 1C skips the rewriter and the judge. It searches once and answers.
-Phase 2 builds the test questions that both versions are measured on.
-Phase 4 compares the two versions.
+Phase 2 measured it on the test questions, and Phase 4 compares the two versions on the same questions.
 
 ## Project layout
 
@@ -81,12 +92,19 @@ Phase 4 compares the two versions.
 | `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
 | `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
 | `docs/answer-report.md` | Phase 1C results: the answers to the same eight questions, their sources and citation checks, with an assessment of each. |
+| `docs/eval-report.md` | Phase 2 results: what the test set contains, the numbers per experiment and category, and the most instructive failures. |
+| `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
+| `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C). |
+| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`) and the stored runs (`results/`). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
 | `scripts/answer_report.py` | Answers the eight example questions and writes the answer report. |
+| `scripts/check_eval_set.py` | Checks the test set against the chunks and writes the review file. |
+| `scripts/eval_report.py` | Compares the stored runs and writes the evaluation report. |
+| `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
 | `data/` | The downloaded dataset, script output and the chunks file `data/processed/labour_chunks.jsonl`. Created during setup, not in git. |
@@ -195,6 +213,16 @@ Run every command below from the repository root, the folder that contains this 
    .venv/bin/python -m unittest discover -s tests -t .
    ```
 
+10. Measure it on the test questions:
+
+    ```bash
+    .venv/bin/python -m labour_rag.evaluate --split dev
+    ```
+
+    This takes about half an hour, because the model answers 32 questions. Add `--retrieval-only` to measure search
+    alone, in seconds. Results go to `eval/results/`, and a run that stops halfway continues where it left off. The 20
+    questions of the test split are for one final measurement, so a second run on them is refused.
+
 ## Everyday commands
 
 Once everything is set up, these are the commands you need day to day. Run them from the repository root.
@@ -210,6 +238,9 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Load or refresh the chunks in the database | `.venv/bin/python -m labour_rag.load` |
 | Search | `.venv/bin/python -m labour_rag.search "your question"` |
 | Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full) |
+| Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone) |
+| Compare a second embedding model (optional) | `ollama pull qwen3-embedding:4b`, then `.venv/bin/python -m labour_rag.embed_experiment` (about 2.5 hours), then the line above with `--retrieval-only --embedding qwen3-4b` |
+| Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
 | Run the tests | `.venv/bin/python -m unittest discover -s tests -t .` |
 
 If the database or Ollama isn't running, `search` and `ask` stop with an error saying which one they can't
@@ -243,6 +274,9 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
 - **Old law only.** The newest labour text is from 1999.
 - **Many documents are thin.** Only 445 of the 1,284 labour documents are divided into articles. Many
   of the rest are a header and a short note, such as "this act was repealed".
+- **Laws are missing.** The chunks mention 700 laws and decrees that aren't documents in our data, among
+  them Ν. 435/1976 on overtime pay, and 468 documents hold only a title. The list is in
+  [docs/missing-laws.md](docs/missing-laws.md).
 - **Messy text.** It was converted from the Word files of a printed collection. There are no line
   breaks, page headers sit in the middle of sentences, and articles are sometimes out of order.
 - **Look-alike characters.** Some Greek words contain Latin letters (`τoυ` with a Latin `o`), and some

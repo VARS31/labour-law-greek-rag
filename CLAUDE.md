@@ -26,7 +26,8 @@ Same list as README.md "Status"; keep the two in sync.
   Ollama model, semantic + accent-insensitive keyword search (**done**, [docs/search-report.md](docs/search-report.md))
 - 1C: one-shot baseline: search once, answer with citations, citations checked in code (**done**,
   [docs/answer-report.md](docs/answer-report.md))
-- 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics
+- 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics (**done**,
+  [docs/eval-report.md](docs/eval-report.md); fetch list for Phase 5 in [docs/missing-laws.md](docs/missing-laws.md))
 - 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
   rounds → answer → citation check
 - 4: compare one-shot vs agentic on the eval set (quality, time)
@@ -35,9 +36,10 @@ Same list as README.md "Status"; keep the two in sync.
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 2.
+Next: Phase 3.
 
 - **After each phase, update the README status, layout and diagram.**
+- At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
   "leverage", "cutting-edge"), no emojis, no em-dashes.
 
@@ -97,6 +99,26 @@ Next: Phase 2.
 - Report: `.venv/bin/python scripts/answer_report.py` (asks the model, stores `data/processed/answer_results.json`);
   `--rewrite-only` rewrites `docs/answer-report.md` from stored results. The hand-written verdicts live in its
   `ASSESSMENTS`, `OVERALL` and `LIMIT_NOTE` and must be redone whenever the answers are regenerated.
+
+## Evaluation (Phase 2)
+
+- `.venv/bin/python -m labour_rag.evaluate --split dev [--max-per-document 4] [--retrieval-only] [--embedding qwen3-4b|qwen3-4b-plain]`
+  writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
+  `--rescore <dir>` scores stored answers again without a model or database.
+- Test split: run once (`2026-11-04_oneshot-limit2-test`) and the code refuses a second run. Don't tune on it and don't
+  read its answers. A fresh test needs new questions. Phase 4's agent needs its own single run on these questions, so the guard in
+  `evaluate.run` must then allow one run per system, no more; ask the owner first.
+- Test set: `eval/questions.jsonl`. Expected answers follow our data, not today's law. After editing it, run
+  `.venv/bin/python -I scripts/check_eval_set.py` (about a minute): every quote must be in its chunk. Its `--write-review`
+  never overwrites `eval/review.md`, which holds the owner's verdicts.
+- Key facts are matched in `labour_rag/key_facts.py`, without a model. It was tuned once on dev answers.
+- Report: `.venv/bin/python -I scripts/eval_report.py` rewrites `docs/eval-report.md` from the stored runs. The hand-written
+  `OVERALL`, `COMMENT_B`, `COMMENT_C`, `TEST_COMMENT`, `FAILURES`, `NEXT` and `HAND_FACTS` must be redone when the runs change.
+- Fetch list: `.venv/bin/python -I scripts/missing_laws.py` rewrites `docs/missing-laws.md`; never edit it by hand.
+- Second embedding model: `.venv/bin/python -m labour_rag.embed_experiment` fills `chunk_embeddings_qwen3_4b` (schema in
+  `sql/005_embedding_experiment.sql`) with `qwen3-embedding:4b`, resuming if interrupted. It takes about 2.5 hours; bge-m3 took 5
+  minutes. The `chunks` table and its bge-m3 vectors are untouched.
+- Don't run two Ollama jobs at once while measuring time. A model run's times also move with the machine's load.
 
 ## Code
 

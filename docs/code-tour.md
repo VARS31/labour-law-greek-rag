@@ -1,12 +1,13 @@
 # Code tour
 
-This page explains the code for someone who doesn't read Python. It covers everything built so far, in two
+This page explains the code for someone who doesn't read Python. It covers everything built so far, in three
 parts:
 
 - **Phase 1A** turns the raw dataset into **5,740 clean, labelled chunks** of Greek labour law, saved in
   `data/processed/labour_chunks.jsonl`.
 - **Phases 1B and 1C** store those chunks in a database, search them, and answer a question with one call
   to a local model, citing the chunks it used and checking those citations.
+- **Phase 2** measures all of that on a fixed set of questions with written-down answers.
 
 A few words used below:
 
@@ -19,6 +20,10 @@ A few words used below:
 - **Embedding**: a list of 1024 numbers that stands for the meaning of a text. Texts with similar meaning
   get similar numbers, so "search by meaning" compares these lists.
 - **Prompt**: the written instructions the model gets before the question.
+- **Gold source**: the chunk that really contains the correct answer to a test question.
+- **Key fact**: one short fact a correct answer must contain.
+- **Dev and test**: dev questions may be looked at while improving things; test questions are for one final
+  measurement only.
 
 Every example on this page is real: it was copied from the data or from the output of the code.
 
@@ -319,6 +324,65 @@ Each entry: what it does, then what goes in → what comes out.
 chunks, checking citations with the real Α.Ν. 539/1945 text). Searching and answering themselves need the
 database and the model, so they are checked through the two reports instead.
 
+## Phase 2: measuring it
+
+```
+ eval/questions.jsonl   52 questions, each with key facts and gold sources (written by reading the chunks)
+        │
+        │  scripts/check_eval_set.py   is every quote really in its chunk? does a question copy the law?
+        │
+        │  evaluate.py     for each question of a split:
+        │                    search.py + retrieve.py   where do the gold chunks rank? are they among the 8?
+        │                    ask.py                    the answer and its citation check (not in a retrieval-only run)
+        │                    key_facts.py              which key facts are in the answer?
+        ▼
+ eval/results/<date>_<config>/   items.jsonl (every question), summary.json and summary.md (the numbers)
+        │
+        │  scripts/eval_report.py      compare the runs, add the hand-written verdicts
+        ▼
+ docs/eval-report.md
+```
+
+### The modules
+
+- **`labour_rag/evaluate.py`** runs the questions of a split and scores them.
+  a split and settings (limit per document, retrieval only, which embedding) → a folder with the result of every
+  question and the numbers per category. A run continues where it stopped if interrupted, stored answers can be scored
+  again without the model (`--rescore`), and a second run on the test split is refused.
+- **`labour_rag/key_facts.py`** decides whether a key fact is in an answer, without a model.
+  a fact + an answer → yes or no: all the fact's numbers must be there and enough of its other words, ignoring accents
+  and word endings. "τρεις μήνες", "3 μήνες" and "τρίμηνο" count as the same.
+- **`labour_rag/embed_experiment.py`** tries a second embedding model without touching the `chunks` table.
+  the chunks' text → `qwen3-embedding:4b` vectors in their own table, and search by meaning over those vectors.
+- **`labour_rag/law_mentions.py`** finds the laws a text mentions.
+  a chunk's text → the laws it names, in any of the forms the texts use ("Νόμ. 435/1976", "Ν.Δ. 4020/59",
+  "Νόμ. 2556/23-24 Δεκ. 1997"), grouped into those we have and those we don't.
+
+`retrieve.py` and `ask.py` gained one setting, the limit of chunks per document, so the experiment could change it.
+
+### The scripts
+
+- **`scripts/check_eval_set.py`** checks the test set against the chunks and wrote the review file.
+  `eval/questions.jsonl` + the chunks → errors and warnings, the counts per category, and `eval/review.md` if asked
+  (it never overwrites one that holds verdicts).
+- **`scripts/eval_report.py`** compares the stored runs and adds my hand-written verdicts.
+  `eval/results/` → `docs/eval-report.md`.
+- **`scripts/missing_laws.py`** makes the fetch list for Phase 5.
+  the chunks + the other 46 volumes of the dataset → `docs/missing-laws.md`: every law mentioned but not in our data,
+  most mentioned first, and the documents that are only a title.
+
+### Files that are not Python
+
+- **`eval/questions.jsonl`** is the test set: one question per line, with `id`, `question`, `answerable`, `key_facts`,
+  `gold_sources`, `category`, `split` and `notes`. **`eval/review.md`** holds the project owner's verdicts on 20 of
+  them. **`eval/results/`** holds the runs.
+- **`sql/005_embedding_experiment.sql`** creates the separate table for the second embedding model.
+
+**Tests:** `tests/test_evaluate.py` (matching key facts with real answers, scoring, search or reading problem, the
+checks on the test set) and `tests/test_law_mentions.py` (every form of law citation, with real sentences). The runs
+themselves need the database and the model, so their results are checked by reading the answers, as
+`docs/eval-report.md` describes.
+
 ## Running the tests
 
 ```bash
@@ -326,7 +390,7 @@ database and the model, so they are checked through the two reports instead.
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 76 of them, almost all with real strings from the data, and they run in under a second. If a later
+are 124 of them, almost all with real strings from the data, and they run in under a second. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview
