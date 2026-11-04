@@ -13,13 +13,13 @@ import argparse
 import shutil
 import textwrap
 
-from .db import connect, vector_literal
+from .db import connect, friendly_errors, vector_literal
 from .model_client import ModelClient
 from .normalize import normalize
 
 CANDIDATES = 50     # how many results hybrid takes from each list before fusing
 RRF_K = 60          # the usual RRF constant: score = sum of 1 / (RRF_K + rank)
-_COLUMNS = "id, citation, article, is_note, is_stub, text"
+_COLUMNS = "id, doc_id, citation, citation_fallback, article, title, year, is_note, is_stub, text"
 
 _SEMANTIC = f"""
     SELECT {_COLUMNS}, 1 - (embedding <=> %(v)s::vector) AS score
@@ -148,4 +148,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    friendly_errors(main)

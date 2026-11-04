@@ -32,6 +32,10 @@ class Settings:
     embed_model: str
     embed_dim: int
     embed_batch: int
+    chat_model: str
+    chat_temperature: float
+    chat_num_ctx: int
+    chat_seed: int
 
 
 def load_settings(env_file=ROOT / ".env"):
@@ -53,4 +57,8 @@ def load_settings(env_file=ROOT / ".env"):
         embed_model=get("EMBED_MODEL", "bge-m3"),
         embed_dim=int(get("EMBED_DIM", "1024")),
         embed_batch=int(get("EMBED_BATCH", "16")),
+        chat_model=get("CHAT_MODEL", "ministral-3:8b"),
+        chat_temperature=float(get("CHAT_TEMPERATURE", "0.2")),
+        chat_num_ctx=int(get("CHAT_NUM_CTX", "16384")),
+        chat_seed=int(get("CHAT_SEED", "42")),
     )

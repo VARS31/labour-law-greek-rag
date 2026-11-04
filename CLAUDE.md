@@ -24,7 +24,8 @@ Same list as README.md "Status"; keep the two in sync.
   `data/processed/labour_chunks.jsonl`; non-programmer tour in [docs/code-tour.md](docs/code-tour.md))
 - 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app uses 5432), embeddings with a local
   Ollama model, semantic + accent-insensitive keyword search (**done**, [docs/search-report.md](docs/search-report.md))
-- 1C: one-shot baseline: search once, answer with citations, citations checked in code
+- 1C: one-shot baseline: search once, answer with citations, citations checked in code (**done**,
+  [docs/answer-report.md](docs/answer-report.md))
 - 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics
 - 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
   rounds → answer → citation check
@@ -34,7 +35,7 @@ Same list as README.md "Status"; keep the two in sync.
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 1C.
+Next: Phase 2.
 
 - **After each phase, update the README status, layout and diagram.**
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
@@ -82,6 +83,20 @@ Next: Phase 1C.
   in its `COMMENTS` dict and must be re-checked when results change).
 - All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`.
 - Installed Python packages: duckdb, psycopg[binary]. Ask before adding more.
+
+## Answering (Phase 1C)
+
+- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks]`: `retrieve.py` (hybrid top 30 → skip near-duplicates
+  at 50% word overlap and a 3rd chunk per document → 8 chunks) → one `chat()` call → `citations.check`.
+- Chat settings in `.env`: CHAT_MODEL (ministral-3:8b), CHAT_TEMPERATURE 0.2, CHAT_NUM_CTX 16384, CHAT_SEED 42.
+  `chat()` raises if the prompt fills the context window (Ollama would cut it silently).
+- Model instructions: `prompts/answer.md` (`{closing_note}` is filled from `prompts/closing_note.md`). The user edits
+  these; don't move rules into code. The code appends the closing note if the model leaves it out.
+- Citation check: [n] must exist; «quotes» need a citation in the same sentence and must appear in that chunk
+  (accent/case-insensitive, "…" may skip words); failures show the closest passage and its similarity.
+- Report: `.venv/bin/python scripts/answer_report.py` (asks the model, stores `data/processed/answer_results.json`);
+  `--rewrite-only` rewrites `docs/answer-report.md` from stored results. The hand-written verdicts live in its
+  `ASSESSMENTS`, `OVERALL` and `LIMIT_NOTE` and must be redone whenever the answers are regenerated.
 
 ## Code
 

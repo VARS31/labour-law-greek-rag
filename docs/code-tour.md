@@ -1,21 +1,28 @@
-# Code tour: how Phase 1A works
+# Code tour
 
-This page explains the code for someone who doesn't read Python. It covers everything built so far: the
-code that turns the raw dataset into **5,740 clean, labelled chunks** of Greek labour law, saved in
-`data/processed/labour_chunks.jsonl`.
+This page explains the code for someone who doesn't read Python. It covers everything built so far, in two
+parts:
+
+- **Phase 1A** turns the raw dataset into **5,740 clean, labelled chunks** of Greek labour law, saved in
+  `data/processed/labour_chunks.jsonl`.
+- **Phases 1B and 1C** store those chunks in a database, search them, and answer a question with one call
+  to a local model, citing the chunks it used and checking those citations.
 
 A few words used below:
 
 - **Module**: one Python file. The shared modules live in the folder `labour_rag/`.
 - **Script**: a file you run from the terminal. Scripts live in `scripts/` and use the modules.
 - **Document**: one legal act from the dataset (a law, decree or ministerial decision).
-- **Chunk**: a small piece of a document, usually one article, that search will later return.
+- **Chunk**: a small piece of a document, usually one article, that search returns.
 - **Marker**: the words that start an article, such as `Άρθρ.83.-`, `Άρθρο 5` or `Άρθρον μόνον`.
 - **JSONL**: a text file with one record per line. Each line of `labour_chunks.jsonl` is one chunk.
+- **Embedding**: a list of 1024 numbers that stands for the meaning of a text. Texts with similar meaning
+  get similar numbers, so "search by meaning" compares these lists.
+- **Prompt**: the written instructions the model gets before the question.
 
 Every example on this page is real: it was copied from the data or from the output of the code.
 
-## The data flow
+## Phase 1A: the data flow
 
 ```
  data/raw/greek_legal_code/
@@ -31,8 +38,8 @@ Every example on this page is real: it was copied from the data or from the outp
         ▼
  1,284 normalised texts
         │
-        │  noise.py       step 1: learn the running page titles from all texts (49 found)
-        │                 step 2: remove the printed-page headers (1,954 blocks, 2.5% of the words)
+        │  noise.py       step 1: learn the running page titles from all texts (50 found)
+        │                 step 2: remove the printed-page headers (1,959 blocks, 2.5% of the words)
         ▼
  1,284 clean texts
         │
@@ -52,7 +59,7 @@ Every example on this page is real: it was copied from the data or from the outp
 `scripts/explore_data.py` reads the same parquet files, but only measures them (Phase 0). It doesn't feed
 this pipeline.
 
-## The modules, in the order they run
+## Phase 1A: the modules, in the order they run
 
 ### `labour_rag/dataset.py`: load the documents
 
@@ -109,7 +116,7 @@ The texts come from a loose-leaf book. Each page header has a page number (`Σε
 (`Τεύχος 1294-Σελ. 33`), a position code (`15.Λ.α.58`) and the title of the chapter printed at the top of
 the page. The first three have a fixed shape and are always removed. Titles are ordinary Greek words, so
 the module first **learns** them from the data: text that sits between two page markers, at least twice.
-That gave 49 titles. A title is then removed only when it touches a page marker. Words that are not on
+That gave 50 titles. A title is then removed only when it touches a page marker. Words that are not on
 the list are never removed.
 
 **Examples** (from the labour texts):
@@ -209,7 +216,7 @@ repeal sentence and text to embed on two real documents).
 
 Marks the folder as one package. It contains no logic.
 
-## The scripts
+## Phase 1A: the scripts
 
 ### `scripts/build_chunks.py`: run Phase 1A
 
@@ -240,6 +247,78 @@ law in `stats.json`: 1,284 documents, 769,486 words, about 5,300 chunks (the Pha
 **Tests:** none. It is a one-off measuring script. It keeps an older copy of the article pattern on
 purpose, so that the Phase 0 numbers can be reproduced exactly.
 
+## Phases 1B and 1C: from chunks to answers
+
+```
+ data/processed/labour_chunks.jsonl
+        │
+        │  load.py           store every chunk; get an embedding of its text from bge-m3 (model_client.py)
+        ▼
+ Postgres + pgvector (in Docker, port 5433), table "chunks":
+ text and labels, the embedding (1024 numbers), the words for keyword search
+        │
+ question ─── normalize.py   the same cleaning as the chunks
+        │
+        │  search.py         search by meaning + search by words, combined (hybrid), top 30
+        │  retrieve.py       skip near-identical chunks and a 3rd chunk from the same document → 8 chunks
+        ▼
+ 8 numbered chunks [1]–[8] + the instructions in prompts/answer.md
+        │
+        │  model_client.py   ministral-3:8b writes the answer and cites [1]…[8]
+        ▼
+ answer
+        │
+        │  citations.py      does every [n] exist? is every «quote» really in its chunk?
+        ▼
+ answer + sources + citation check + time per step            (ask.py prints all of this)
+```
+
+### The modules
+
+Each entry: what it does, then what goes in → what comes out.
+
+- **`labour_rag/config.py`** reads the project's settings from the `.env` file.
+  `.env` → the database address and password, the model names and their settings.
+- **`labour_rag/db.py`** connects to the database and creates the tables from the files in `sql/`.
+  settings + `sql/*.sql` → an open connection; the table, the Greek keyword-search setup and the indexes.
+- **`labour_rag/model_client.py`** is the only place that talks to the models, through Ollama.
+  texts → their embeddings; or instructions + question + chunks → the model's answer, with token counts
+  and time.
+- **`labour_rag/load.py`** puts the chunks into the database and embeds the ones that are new or changed.
+  `labour_chunks.jsonl` → 5,740 rows in the table, each with its embedding.
+- **`labour_rag/search.py`** searches three ways: by meaning, by words, and both combined.
+  a question → three ranked lists of chunks with scores; as a command it prints them side by side.
+- **`labour_rag/retrieve.py`** chooses the chunks the model will read.
+  a question → 8 numbered chunks, plus the chunks it skipped and why (near-identical, or a third chunk
+  from the same document).
+- **`labour_rag/citations.py`** checks an answer against the chunks it was based on.
+  answer + the 8 chunks → OK or failed, the list of failed citations (a number that doesn't exist, a quote
+  without a source, a quote that isn't in its chunk) and warnings.
+- **`labour_rag/ask.py`** runs the whole one-shot answer.
+  a question → the answer with the closing note, its sources, the citation check and the time per step;
+  as a command it prints them, and `--show-chunks` also shows exactly what the model received.
+
+### The scripts
+
+- **`scripts/search_report.py`** measures the database and compares the three search methods.
+  the database + 8 example questions → `docs/search-report.md`.
+- **`scripts/answer_report.py`** answers the same 8 questions and lays the results out for assessment.
+  8 questions → `data/processed/answer_results.json` and `docs/answer-report.md`.
+
+### Files that are not Python
+
+- **`docker-compose.yml`** starts Postgres with pgvector in Docker. It reads the password from `.env`
+  (template: `.env.example`).
+- **`sql/001_extensions.sql` … `sql/004_hnsw_index.sql`** create the database step by step: extensions,
+  the Greek keyword-search setup, the `chunks` table (every column has a comment) and the index for search
+  by meaning. **`sql/greek_labour.stop`** lists the very common words keyword search ignores.
+- **`prompts/answer.md`** holds the instructions for the model; **`prompts/closing_note.md`** the note
+  every answer must end with. Both can be edited without touching any code.
+
+**Tests:** `tests/test_search_parts.py` (settings, rank fusion) and `tests/test_answering.py` (choosing the
+chunks, checking citations with the real Α.Ν. 539/1945 text). Searching and answering themselves need the
+database and the model, so they are checked through the two reports instead.
+
 ## Running the tests
 
 ```bash
@@ -247,8 +326,8 @@ purpose, so that the Phase 0 numbers can be reproduced exactly.
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 51 of them, all with real strings from the data, and they run in under a second. If a later change
-breaks one of the rules above, a test fails and says which one.
+are 76 of them, almost all with real strings from the data, and they run in under a second. If a later
+change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview
 
@@ -283,6 +362,8 @@ This is one line of `data/processed/labour_chunks.jsonl`, spread over several li
   "year": 1990,
   "fek": "Α΄ 31",
   "title": "Υγιεινή και Ασφάλεια των Εργαζομένων σε ναυπηγικές εργασίες",
+  "citation": "Π.Δ. 70/1990",
+  "citation_fallback": false,
   "method": "article",
   "kind": "article",
   "article": "Άρθρο 28",
@@ -313,6 +394,8 @@ This is one line of `data/processed/labour_chunks.jsonl`, spread over several li
 | `year` | `1990` | The year the act was published. |
 | `fek` | `Α΄ 31` | Where it was published in the Government Gazette: series Α, issue 31. Empty when the header doesn't say. |
 | `title` | `Υγιεινή και Ασφάλεια …` | The title of the act: health and safety of workers in shipyards. |
+| `citation` | `Π.Δ. 70/1990` | How the chunk names its source. Without an act number it is longer: act type, «title» and (chapter, year). |
+| `citation_fallback` | `false` | `true` when that longer form had to be used. |
 | `method` | `article` | How the whole document was cut: by article (others: `paragraph`, `size`, `whole`). |
 | `kind` | `article` | What this chunk is: an article (others: `preamble`, `paragraph`, `whole`, `size`). |
 | `article` | `Άρθρο 28` | Which article it is. When short pieces were joined, all their labels are listed. |
@@ -320,7 +403,7 @@ This is one line of `data/processed/labour_chunks.jsonl`, spread over several li
 | `part`, `parts` | `1`, `1` | Long articles are cut into windows; this is window 1 of 1, so the article was short enough to stay whole. |
 | `words` | `49` | How long the chunk is. |
 | `is_stub` | `false` | `true` when the whole document is under 30 words, usually a header with nothing else. |
-| `is_note` | `false` | `true` when the chunk is an editor's note about the law ("repealed by…", "amended by…") rather than the law itself. |
-| `repeal_sentences` | `[]` | Sentences saying that something was repealed (`Κατηργήθη δια…`), kept word for word for a later phase. Empty here. |
+| `is_note` | `false` | `true` when the chunk is mainly an editor's note about the law ("repealed by…", "amended by…") rather than the law itself: the notes make up at least half of it. |
+| `repeal_sentences` | `[]` | The short sentence around each "was repealed" (`Κατηργήθη δια…`), kept word for word for a later phase. Empty here. |
 | `text` | `Εργασίες με αμίαντο Άρθρ.28.-…` | The cleaned text of the chunk. It starts with the heading "Εργασίες με αμίαντο" (work with asbestos), which was moved here from the end of article 27. |
-| `embed_text` | `Π.Δ. 70/1990, Άρθρο 28, …` | What will be turned into a vector in Phase 1B: a short header (citation, article, title), a line break (`\n`), then the text. The header tells search which law the article belongs to, which the text alone doesn't say. |
+| `embed_text` | `Π.Δ. 70/1990, Άρθρο 28, …` | What is turned into an embedding and indexed for keyword search (Phase 1B): a short header (citation, article, title), a line break (`\n`), then the text. The header tells search which law the article belongs to, which the text alone doesn't say. |

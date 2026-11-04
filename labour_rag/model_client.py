@@ -1,7 +1,7 @@
 """All calls to local models go through this module (Ollama's HTTP API, with Python's built-in urllib).
 
-One place to change the model or the provider. The model names come from .env (EMBED_MODEL), so swapping
-bge-m3 for another embedding model is a configuration change. Phase 1C will add the chat model here.
+One place to change the model or the provider. The model names and settings come from .env (EMBED_MODEL,
+CHAT_MODEL, …), so swapping a model is a configuration change.
 """
 
 import json
@@ -17,18 +17,42 @@ class ModelError(RuntimeError):
 
 
 class ModelClient:
-    def __init__(self, host, embed_model, embed_dim=None, timeout=600):
+    def __init__(self, host, embed_model, embed_dim=None, chat_model=None, chat_temperature=0.2,
+                 chat_num_ctx=16384, chat_seed=None, timeout=600):
         self.host = host.rstrip("/")
         self.embed_model = embed_model
         self.embed_dim = embed_dim
+        self.chat_model = chat_model
+        self.chat_options = {"temperature": chat_temperature, "num_ctx": chat_num_ctx}
+        if chat_seed is not None:
+            self.chat_options["seed"] = chat_seed
         self.timeout = timeout
-        self.tokens = 0          # tokens sent so far (as counted by Ollama)
-        self.seconds = 0.0       # time spent waiting for the model so far
+        self.tokens = 0          # embedding tokens sent so far (as counted by Ollama)
+        self.seconds = 0.0       # time spent waiting for embeddings so far
+        self.last_chat = {}      # tokens and timings of the last chat call
 
     @classmethod
     def from_settings(cls, settings=None):
         s = settings or load_settings()
-        return cls(s.ollama_host, s.embed_model, s.embed_dim)
+        return cls(s.ollama_host, s.embed_model, s.embed_dim, s.chat_model, s.chat_temperature, s.chat_num_ctx,
+                   s.chat_seed)
+
+    def chat(self, messages, **options):
+        """One answer from the chat model for a list of {"role", "content"} messages. Extra keyword arguments
+        override the options from .env (e.g. temperature=0)."""
+        opts = {**self.chat_options, **options}
+        started = time.perf_counter()
+        data = self._post("/api/chat", {"model": self.chat_model, "messages": messages, "stream": False,
+                                        "options": opts})
+        prompt_tokens = data.get("prompt_eval_count", 0)
+        self.last_chat = {"seconds": time.perf_counter() - started, "prompt_tokens": prompt_tokens,
+                          "answer_tokens": data.get("eval_count", 0),
+                          "load_seconds": data.get("load_duration", 0) / 1e9, "done_reason": data.get("done_reason")}
+        # Ollama silently drops the start of a prompt that doesn't fit the context window; refuse instead.
+        if prompt_tokens + self.last_chat["answer_tokens"] >= opts["num_ctx"]:
+            raise ModelError(f"the prompt ({prompt_tokens} tokens) filled the context window of {opts['num_ctx']}; "
+                             "raise CHAT_NUM_CTX or send fewer chunks")
+        return data["message"]["content"]
 
     def embed(self, texts):
         """One embedding per text. A text longer than the model's context raises an error instead of being

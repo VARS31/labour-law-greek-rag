@@ -19,6 +19,20 @@ def connect(settings=None, **kwargs):
     return conn
 
 
+def friendly_errors(fn):
+    """Run a command's main(): if the database or Ollama can't be reached, print one clear line instead of a
+    traceback and exit with status 1."""
+    from .model_client import ModelError
+    try:
+        fn()
+    except psycopg.OperationalError as error:
+        s = load_settings()
+        raise SystemExit(f"Can't reach the database at {s.postgres_host}:{s.postgres_port}. Is it running? "
+                         f"Start it with: docker compose up -d\n({str(error).strip().splitlines()[0]})") from None
+    except ModelError as error:
+        raise SystemExit(f"{error}\nIs Ollama running? Check with: ollama list") from None
+
+
 def schema_files(upto=None):
     files = sorted(SQL_DIR.glob("[0-9][0-9][0-9]_*.sql"))
     return [f for f in files if upto is None or int(f.name[:3]) <= upto]

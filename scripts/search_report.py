@@ -20,7 +20,8 @@ sys.path.insert(0, str(ROOT))
 from labour_rag import search  # noqa: E402
 from labour_rag.db import HNSW_EF_SEARCH, apply_schema, connect  # noqa: E402
 from labour_rag.model_client import ModelClient  # noqa: E402
-from labour_rag.normalize import fold, normalize  # noqa: E402
+from labour_rag.normalize import normalize  # noqa: E402
+from labour_rag.retrieve import NEAR_IDENTICAL, overlap, word_set  # noqa: E402
 
 REPORT = ROOT / "docs/search-report.md"
 RUNS = 7                  # timing runs per query; the median is reported
@@ -153,18 +154,9 @@ def sizes(conn):
             "text_raw": cols[5], "embed_text_raw": cols[6], "index_sizes": dict(indexes)}
 
 
-NEAR_IDENTICAL = 0.5    # share of distinct words two chunk texts have in common (ignoring numbers, short words)
 IDENTICAL = 0.8         # stricter level for the whole-collection count
 # A ninth question, only for the near-duplicate check: it asks about the standard ILO convention clauses.
 PROBE = "Πότε τίθεται σε ισχύ μια διεθνής σύμβαση εργασίας και πώς μπορεί να καταγγελθεί;"
-
-
-def word_set(text):
-    return {w for w in re.sub(r"[\d\W_]+", " ", fold(normalize(text))).split() if len(w) > 2}
-
-
-def overlap(a, b):
-    return len(a & b) / max(1, len(a | b))
 
 
 def near_duplicates(results):

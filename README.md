@@ -11,7 +11,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
 - [x] Phase 1A: Clean the labour-law texts and split them into chunks. Results are in [docs/chunking-report.md](docs/chunking-report.md).
 - [x] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search. Results are in [docs/search-report.md](docs/search-report.md).
-- [ ] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code.
+- [x] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code. Results are in [docs/answer-report.md](docs/answer-report.md): none of the eight answers is fully right yet (four partly, four wrong), so the later phases have a clear baseline to beat.
 - [ ] Phase 2: Evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics.
 - [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
 - [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
@@ -21,7 +21,8 @@ Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata
 
 ## How it works
 
-The index and the three search methods are built. The question flow is the plan.
+The index, the search and the one-shot answer with its citation check are built. The rewriter and the
+judge are the plan.
 
 ```
 BUILD THE INDEX (once)
@@ -54,10 +55,10 @@ ANSWER A QUESTION
         |   no, and fewer than 3 rounds done: try again -----+
         |   yes, or 3 rounds done
         v
-  answer with citations ........... planned   Phase 1C
+  answer with citations ........... built     Phase 1C
         |
         v
-  citation check .................. planned   Phase 1C
+  citation check .................. built     Phase 1C
 ```
 
 The one-shot baseline from Phase 1C skips the rewriter and the judge. It searches once and answers.
@@ -73,16 +74,19 @@ Phase 4 compares the two versions.
 | `LICENSE` | MIT licence for the code in this repository. |
 | `requirements.txt` | Python packages: duckdb (reads the dataset) and psycopg (talks to Postgres). |
 | `docker-compose.yml` | Postgres 17 with pgvector, on port 5433. |
-| `.env.example` | Template for `.env`: database password, ports and the Ollama model names. |
+| `.env.example` | Template for `.env`: database password, ports, and the Ollama model names and settings. |
 | `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
+| `prompts/` | The instructions for the answering model (`answer.md`) and the note every answer ends with (`closing_note.md`). Edit them freely. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
 | `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
 | `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
+| `docs/answer-report.md` | Phase 1C results: the answers to the same eight questions, their sources and citation checks, with an assessment of each. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `labour_rag/` | Shared Python code: cleaning and chunking (Phase 1A), and the settings, database, model client, loader and search (Phase 1B). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
+| `scripts/answer_report.py` | Answers the eight example questions and writes the answer report. |
 | `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
 | `data/` | The downloaded dataset, script output and the chunks file `data/processed/labour_chunks.jsonl`. Created during setup, not in git. |
@@ -173,11 +177,43 @@ Run every command below from the repository root, the folder that contains this 
    It prints the top 10 of semantic, keyword and hybrid search side by side. To measure everything again
    and rewrite `docs/search-report.md`, run `.venv/bin/python scripts/search_report.py`.
 
-8. Run the tests:
+8. Ask a question:
+
+   ```bash
+   ollama pull ministral-3:8b
+   .venv/bin/python -m labour_rag.ask "Πόσες ημέρες κανονική άδεια δικαιούται ο μισθωτός;"
+   ```
+
+   An answer takes about a minute. It prints the answer, its sources, the result of the citation check and the time of each step. Add
+   `--show-chunks` to see exactly what the model received. The model's instructions are in
+   `prompts/answer.md`. To answer the eight example questions again and rewrite `docs/answer-report.md`,
+   run `.venv/bin/python scripts/answer_report.py`.
+
+9. Run the tests:
 
    ```bash
    .venv/bin/python -m unittest discover -s tests -t .
    ```
+
+## Everyday commands
+
+Once everything is set up, these are the commands you need day to day. Run them from the repository root.
+If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
+
+| What | Command |
+|---|---|
+| Start the database | `docker compose up -d` |
+| Is it running? | `docker compose ps` (look for "healthy") |
+| Stop the database (keeps the data) | `docker compose stop` |
+| Is Ollama running, and are the models there? | `ollama list` (needs `bge-m3` and `ministral-3:8b`) |
+| Which models are loaded right now? | `ollama ps` |
+| Load or refresh the chunks in the database | `.venv/bin/python -m labour_rag.load` |
+| Search | `.venv/bin/python -m labour_rag.search "your question"` |
+| Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full) |
+| Run the tests | `.venv/bin/python -m unittest discover -s tests -t .` |
+
+If the database or Ollama isn't running, `search` and `ask` stop with an error saying which one they can't
+reach.
 
 ## Data and credits
 
