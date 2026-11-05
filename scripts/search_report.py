@@ -211,9 +211,9 @@ def measure():
             v = vectors[0]
             entry = {"question": question, "topic": topic, "embed": embed_time, "vector": v,
                      "lexemes": search.query_lexemes(conn, question)}
-            for name, fn in [("semantic", lambda: search.semantic(conn, client, question, 10, v)),
+            for name, fn in [("semantic", lambda: search.semantic(conn, client, question, 10, v, "bge-m3")),
                              ("keyword", lambda: search.keyword(conn, question, 10)),
-                             ("hybrid", lambda: search.hybrid(conn, client, question, 10, vector=v))]:
+                             ("hybrid", lambda: search.hybrid(conn, client, question, 10, vector=v, embedding="bge-m3"))]:
                 fn()                                                    # warm-up
                 entry[f"{name}_time"], entry[name] = timed(fn)
             out["questions"].append(entry)
@@ -229,8 +229,8 @@ def measure():
         out["sizes_with_hnsw"] = sizes(conn)
         for entry in out["questions"]:
             v, question = entry["vector"], entry["question"]
-            for name, fn in [("semantic", lambda: search.semantic(conn, client, question, 10, v)),
-                             ("hybrid", lambda: search.hybrid(conn, client, question, 10, vector=v))]:
+            for name, fn in [("semantic", lambda: search.semantic(conn, client, question, 10, v, "bge-m3")),
+                             ("hybrid", lambda: search.hybrid(conn, client, question, 10, vector=v, embedding="bge-m3"))]:
                 fn()
                 entry[f"{name}_time_hnsw"], entry[f"{name}_hnsw"] = timed(fn)
         out["twins"] = corpus_twins(conn)

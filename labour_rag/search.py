@@ -1,6 +1,6 @@
 """Search the chunks three ways:
 
-  semantic  nearest embeddings (cosine similarity of bge-m3 vectors)
+  semantic  nearest embeddings (cosine similarity; embeddings.DEFAULT_EMBEDDING chooses whose vectors)
   keyword   Postgres full-text search: accent-insensitive, Greek stopwords removed, any query word may match
   hybrid    Reciprocal Rank Fusion (RRF) of the two lists
 
@@ -14,6 +14,7 @@ import shutil
 import textwrap
 
 from .db import connect, friendly_errors, vector_literal
+from .embeddings import DEFAULT_EMBEDDING, EMBEDDINGS, embed_question
 from .law_mentions import names_a_law
 from .model_client import ModelClient
 from .normalize import normalize
@@ -32,6 +33,18 @@ _SEMANTIC = f"""
     FROM chunks
     ORDER BY embedding <=> %(v)s::vector
     LIMIT %(k)s
+"""
+# Other embeddings have their own table of vectors, stored as halfvec.
+_SEMANTIC_OWN_TABLE = f"""
+    WITH nearest AS (
+        SELECT id, embedding <=> %(v)s::halfvec AS distance
+        FROM {{table}}
+        ORDER BY embedding <=> %(v)s::halfvec
+        LIMIT %(k)s
+    )
+    SELECT {_COLUMNS}, 1 - distance AS score
+    FROM nearest JOIN chunks USING (id)
+    ORDER BY distance
 """
 # The query words, after the same processing as the chunks, joined with OR ("|"). Ranked by ts_rank with
 # length normalisation (option 1), so long chunks don't win just by repeating a word.
@@ -59,16 +72,18 @@ def query_lexemes(conn, question):
                         [normalize(question)]).fetchone()[0]
 
 
-def semantic(conn, client, question, k=10, vector=None):
+def semantic(conn, client, question, k=10, vector=None, embedding=DEFAULT_EMBEDDING):
     """Nearest chunks by cosine similarity. Uses the HNSW index when it exists.
 
     The vectors are stored out of line (TOAST) and Postgres' planner doesn't count that cost, so on its own it
     picks a full table scan even when the HNSW index is there. pgvector's README suggests switching sequential
     scans off for such queries; without an index Postgres still scans, because it has no other way."""
-    vector = vector or client.embed([normalize(question)])[0]
+    vector = vector or embed_question(client, question, embedding)
+    table = EMBEDDINGS[embedding].table
+    query = _SEMANTIC if table == "chunks" else _SEMANTIC_OWN_TABLE.format(table=table)
     conn.execute("SET enable_seqscan = off")
     try:
-        return _rows(conn.execute(_SEMANTIC, {"v": vector_literal(vector), "k": k}))
+        return _rows(conn.execute(query, {"v": vector_literal(vector), "k": k}))
     finally:
         conn.execute("RESET enable_seqscan")
 
@@ -115,6 +130,13 @@ def reserved_places(semantic_results, keyword_results, first=SEMANTIC_PLACES, ad
     return head + extra + [r for r in semantic_results[first:] if r["id"] not in placed]
 
 
+def _numbered(chunks, lists, k):
+    """The first k chunks, numbered, each with its rank in every list as <name>_rank."""
+    ranks = {name: {r["id"]: r["rank"] for r in results} for name, results in lists.items()}
+    return [{**r, "rank": i, **{f"{name}_rank": ranks[name].get(r["id"]) for name in lists}}
+            for i, r in enumerate(chunks[:k], 1)]
+
+
 def fuse(fusion, semantic_results, keyword_results, question, k=10):
     """One ranked list from the two, by the chosen way (see FUSIONS). Every result keeps its rank in each list as
     semantic_rank and keyword_rank, as rrf_fuse does."""
@@ -129,23 +151,45 @@ def fuse(fusion, semantic_results, keyword_results, question, k=10):
         chunks = reserved_places(semantic_results, keyword_results)
     else:
         raise ValueError(f"unknown fusion: {fusion}")
-    ranks = {name: {r["id"]: r["rank"] for r in results} for name, results in lists.items()}
-    return [{**r, "rank": i, **{f"{name}_rank": ranks[name].get(r["id"]) for name in lists}}
-            for i, r in enumerate(chunks[:k], 1)]
+    return _numbered(chunks, lists, k)
 
 
-def ranked(conn, client, question, k=10, fusion=DEFAULT_FUSION, candidates=CANDIDATES, vector=None):
+def best_similarity(lists):
+    """One ranked list from the semantic lists of several queries. Every chunk keeps its highest similarity to any one
+    query, so being found by many queries earns nothing, which is what went wrong with RRF. The scores can be compared
+    because all the queries are embedded by the same model and searched in the same vectors."""
+    best = {}
+    for results in lists:
+        for r in results:
+            if r["id"] not in best or r["score"] > best[r["id"]]["score"]:
+                best[r["id"]] = r
+    ordered = sorted(best.values(), key=lambda r: (-r["score"], r["id"]))
+    return [dict(r, rank=i) for i, r in enumerate(ordered, 1)]
+
+
+def multi_query(conn, client, queries, keyword_query="", k=10, candidates=CANDIDATES, embedding=DEFAULT_EMBEDDING):
+    """Search each query semantically and combine by best_similarity. If there is a keyword query, keyword search may add
+    chunks after semantic's first places, as in reserved_places. Returns (ranked chunks, the two lists they came from)."""
+    semantic_results = best_similarity([semantic(conn, client, q, candidates, embedding=embedding) for q in queries])
+    keyword_results = keyword(conn, keyword_query, candidates) if keyword_query else []
+    chunks = reserved_places(semantic_results, keyword_results) if keyword_results else semantic_results
+    lists = {"semantic": semantic_results, "keyword": keyword_results}
+    return _numbered(chunks, lists, k), lists
+
+
+def ranked(conn, client, question, k=10, fusion=DEFAULT_FUSION, candidates=CANDIDATES, vector=None,
+           embedding=DEFAULT_EMBEDDING):
     """The k best chunks for a question, by the chosen way of combining semantic and keyword search."""
     keyword_results = [] if fusion == "semantic" else keyword(conn, question, candidates)
-    return fuse(fusion, semantic(conn, client, question, candidates, vector), keyword_results, question, k)
+    return fuse(fusion, semantic(conn, client, question, candidates, vector, embedding), keyword_results, question, k)
 
 
-def hybrid(conn, client, question, k=10, candidates=CANDIDATES, vector=None):
-    return ranked(conn, client, question, k, "rrf", candidates, vector)
+def hybrid(conn, client, question, k=10, candidates=CANDIDATES, vector=None, embedding=DEFAULT_EMBEDDING):
+    return ranked(conn, client, question, k, "rrf", candidates, vector, embedding)
 
 
 def search_all(conn, client, question, k=10):
-    vector = client.embed([normalize(question)])[0]       # embed once, use for both semantic and hybrid
+    vector = embed_question(client, question)             # embed once, use for both semantic and hybrid
     return {"semantic": semantic(conn, client, question, k, vector),
             "keyword": keyword(conn, question, k),
             "hybrid": hybrid(conn, client, question, k, vector=vector)}

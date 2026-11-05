@@ -17,8 +17,8 @@ A few words used below:
 - **Chunk**: a small piece of a document, usually one article, that search returns.
 - **Marker**: the words that start an article, such as `Άρθρ.83.-`, `Άρθρο 5` or `Άρθρον μόνον`.
 - **JSONL**: a text file with one record per line. Each line of `labour_chunks.jsonl` is one chunk.
-- **Embedding**: a list of 1024 numbers that stands for the meaning of a text. Texts with similar meaning
-  get similar numbers, so "search by meaning" compares these lists.
+- **Embedding**: a list of numbers (1024 with bge-m3, 2560 with qwen3) that stands for the meaning of a text. Texts
+  with similar meaning get similar numbers, so "search by meaning" compares these lists.
 - **Prompt**: the written instructions the model gets before the question.
 - **Gold source**: the chunk that really contains the correct answer to a test question.
 - **Key fact**: one short fact a correct answer must contain.
@@ -265,7 +265,8 @@ purpose, so that the Phase 0 numbers can be reproduced exactly.
         │
  question ─── normalize.py   the same cleaning as the chunks
         │
-        │  search.py         search by meaning, top 30 (until Phase 3A: combined with search by words)
+        │  search.py         search by meaning, top 30 (until Phase 3A: combined with search by words;
+        │                    until Phase 3B: with bge-m3, now qwen3)
         │  retrieve.py       skip near-identical chunks and a 3rd chunk from the same document → 8 chunks
         ▼
  8 numbered chunks [1]–[8] + the instructions in prompts/answer.md
@@ -353,8 +354,8 @@ database and the model, so they are checked through the two reports instead.
 - **`labour_rag/key_facts.py`** decides whether a key fact is in an answer, without a model.
   a fact + an answer → yes or no: all the fact's numbers must be there and enough of its other words, ignoring accents
   and word endings. "τρεις μήνες", "3 μήνες" and "τρίμηνο" count as the same.
-- **`labour_rag/embed_experiment.py`** tries a second embedding model without touching the `chunks` table.
-  the chunks' text → `qwen3-embedding:4b` vectors in their own table, and search by meaning over those vectors.
+- **`labour_rag/embed_experiment.py`** tried a second embedding model without touching the `chunks` table. It's now
+  `labour_rag/embeddings.py`: see Phase 3B.
 - **`labour_rag/law_mentions.py`** finds the laws a text mentions.
   a chunk's text → the laws it names, in any of the forms the texts use ("Νόμ. 435/1976", "Ν.Δ. 4020/59",
   "Νόμ. 2556/23-24 Δεκ. 1997"), grouped into those we have and those we don't.
@@ -417,6 +418,46 @@ themselves need the database and the model, so their results are checked by read
 sentences), `tests/test_law_mentions.py` (does a question name a law) and `tests/test_evaluate.py` (the test guard, how the winner
 is picked).
 
+## Phase 3B: the Query Enhancer
+
+```
+ the question
+        │
+        │  enhancer.py       one call to ministral-3:8b → rewritten, variants, law_refs, topic_hint (JSON)
+        │                    the code drops any law or phrase with a number the question doesn't contain
+        │  search.py         search each variant; each chunk keeps its best similarity; keyword may add 2 if a law is named
+        │  retrieve.py       skip repeats and a 3rd chunk from the same document → 8 chunks
+        ▼
+ did the right chunk reach the writer?  (evaluate.py, no model answer)
+        │
+        │  scripts/enhancer_report.py      the numbers, the vocabulary questions, five example outputs
+        ▼
+ docs/enhancer-report.md
+```
+
+### What changed in the code
+
+- **`labour_rag/enhancer.py`** is new.
+  a question → searches in the words of the law, as checked JSON, in about 7 seconds.
+- **`labour_rag/embeddings.py`** (was `embed_experiment.py`) says which embedding search uses, and qwen3 is now the default.
+  the chunks' text → `qwen3-embedding:4b` vectors in their own table; a question → its vector, from the chosen model.
+- **`labour_rag/retrieve.py`**: `select` no longer treats chunks with different numbers as repeats, and it keeps the newest act among real repeats.
+  a chunk's text → the numbers it states, with their units: "16 εβδομάδες", "10%". "Άρθρο 8" and "ΦΕΚ Β΄897" don't count, because they only name something.
+- **`labour_rag/search.py`** gained `multi_query` and `best_similarity`.
+  several searches → one ranked list, where being found by many searches earns nothing.
+- **`labour_rag/model_client.py`**: one client now reaches every model, and `chat` can ask for an answer in a fixed JSON shape.
+
+### The scripts and the prompt
+
+- **`prompts/enhancer.md`** holds the instructions and four examples. It can be edited without touching any code.
+- **`scripts/check_enhancer_prompt.py`** makes sure those examples don't teach to the test.
+  the prompt + `eval/questions.jsonl` → an error if an example's topic or law number is in the test set.
+- **`scripts/enhancer_report.py`** runs what's missing and writes the report.
+  `eval/results/` → `docs/enhancer-report.md`. It stops if a hand-written claim no longer matches the runs.
+
+**Tests:** `tests/test_enhancer.py` (reading the model's answer, dropping invented laws, combining searches, the prompt check) and
+`tests/test_answering.py` (what counts as a repeat, which act is kept).
+
 ## Running the tests
 
 ```bash
@@ -424,7 +465,7 @@ is picked).
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 144 of them, almost all with real strings from the data, and they run in under a second. If a later
+are 171 of them, almost all with real strings from the data, and they run in under a second. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

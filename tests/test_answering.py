@@ -3,7 +3,7 @@
 import unittest
 
 from labour_rag.citations import check, closest, is_refusal, quote_found
-from labour_rag.retrieve import select
+from labour_rag.retrieve import rule_numbers, select
 
 # glc-40073-002, Α.Ν. 539/1945 Άρθρο 2 (start)
 LEAVE = ("Άρθρ.2.-«1.Κάθε μισθωτός, μετά από συνεχή απασχόληση τουλάχιστο δώδεκα μηνών (βασικός χρόνος) σε "
@@ -98,8 +98,8 @@ class Check(unittest.TestCase):
         self.assertEqual(len(result["warnings"]), 3)          # uncited sentence, no year, no closing note
 
 
-def result(rid, doc, text, rank):
-    return {"id": rid, "doc_id": doc, "text": text, "rank": rank}
+def result(rid, doc, text, rank, year=1980):
+    return {"id": rid, "doc_id": doc, "text": text, "rank": rank, "year": year}
 
 
 class Select(unittest.TestCase):
@@ -116,6 +116,61 @@ class Select(unittest.TestCase):
         self.assertEqual([r["n"] for r in kept], [1, 2, 3, 4])
         self.assertEqual([(r["id"], r["reason"]) for r in removed], [("b", "near-duplicate"), ("e", "same document")])
         self.assertEqual(removed[0]["of"], "a")
+
+    # The real pair behind single-15: same words around different numbers, Υ.Α. 12756/1989 and Π.Δ. 176/1997.
+    MATERNITY = "Η συνολική διάρκεια της άδειας μητρότητας ορίζεται σε {} εβδομάδες πριν και μετά τον τοκετό"
+    # The real kind of pair behind the yearly bonus decisions: the same rule, with another decision number and date.
+    BONUS = ("{}. ΑΠΟΦΑΣΙΣ ΥΠΟΥΡΓΩΝ Αριθ. {} (ΦΕΚ Β΄{}) Περί χορηγήσεως δώρου Χριστουγέννων εις τους μισθωτούς. "
+             "Οι εργοδόται υποχρεούνται να καταβάλουν εις τους μισθωτούς δώρον ίσον προς 25 ημερομίσθια")
+
+    def test_different_numbers_are_never_repeats(self):
+        results = [result("old", 1, self.MATERNITY.format(15), 1, 1989), result("new", 2, self.MATERNITY.format(16), 2, 1997)]
+        kept, removed = select(results, k=4, max_per_document=2)
+        self.assertEqual([r["id"] for r in kept], ["old", "new"])
+        self.assertEqual(removed, [])
+
+    def test_numbers_that_only_name_a_decision_dont_stop_a_repeat(self):
+        results = [result("a", 1, self.BONUS.format(18, "111700/6570", 808), 1, 1969),
+                   result("b", 2, self.BONUS.format(19, "103100/4990", 897), 2, 1969)]
+        kept, removed = select(results, k=4, max_per_document=2)
+        self.assertEqual([r["id"] for r in kept], ["a"])
+        self.assertEqual(removed[0]["of"], "a")
+
+    def test_the_literal_rule_counts_every_digit(self):
+        results = [result("a", 1, self.BONUS.format(18, "111700/6570", 808), 1), result("b", 2, self.BONUS.format(19, "103100/4990", 897), 2)]
+        kept, _ = select(results, k=4, max_per_document=2, number_rule="digits")
+        self.assertEqual([r["id"] for r in kept], ["a", "b"])
+
+    def test_among_repeats_the_newest_act_takes_the_place(self):
+        results = [result("old", 1, self.BONUS.format(18, "111700/6570", 808), 1, 1969), result("other", 2, OTHER, 2, 1980),
+                   result("new", 3, self.BONUS.format(19, "103100/4990", 897), 3, 1970)]
+        kept, removed = select(results, k=4, max_per_document=2)
+        self.assertEqual([(r["id"], r["n"]) for r in kept], [("new", 1), ("other", 2)])
+        self.assertEqual([(r["id"], r["reason"], r["of"]) for r in removed], [("old", "near-duplicate", "new")])
+
+    def test_a_newer_repeat_is_found_even_after_all_places_are_taken(self):
+        results = [result("old", 1, self.BONUS.format(18, "111700/6570", 808), 1, 1969), result("next", 2, OTHER, 2),
+                   result("late", 3, LEAVE, 3), result("new", 4, self.BONUS.format(19, "103100/4990", 897), 4, 1970)]
+        kept, _ = select(results, k=2, max_per_document=2)
+        self.assertEqual([r["id"] for r in kept], ["new", "next"])
+
+    def test_a_repeat_with_an_unknown_year_or_an_older_year_doesnt_replace(self):
+        for year in (None, 1950):
+            results = [result("kept", 1, self.BONUS.format(18, "111700/6570", 808), 1, 1969),
+                       result("other", 2, self.BONUS.format(19, "103100/4990", 897), 2, year)]
+            self.assertEqual([r["id"] for r in select(results, k=4)[0]], ["kept"])
+
+    def test_a_newer_repeat_respects_the_limit_per_document(self):
+        results = [result("old", 1, self.BONUS.format(18, "111700/6570", 808), 1, 1969), result("x", 2, OTHER, 2, 1970),
+                   result("y", 2, LEAVE, 3, 1970), result("new", 2, self.BONUS.format(19, "103100/4990", 897), 4, 1970)]
+        kept, removed = select(results, k=4, max_per_document=2)
+        self.assertEqual([r["id"] for r in kept], ["old", "x", "y"])
+        self.assertEqual(removed[-1]["id"], "new")
+
+    def test_rule_numbers(self):
+        self.assertEqual(rule_numbers("σε 16 εβδομάδες, δηλαδή πέντε ημέρες και 10%, δρχ. 27.012"),
+                         {("16", "εβδομάδα"), ("5", "ημέρα"), ("10", "%"), ("27012", "δραχμή")})
+        self.assertEqual(rule_numbers("Άρθρ. 8 παρ. 2 του Ν. 1414/1984, Αριθ. 103100/4990 της 10/12 Δεκ. 1970 (ΦΕΚ Β΄897)"), set())
 
 
 if __name__ == "__main__":

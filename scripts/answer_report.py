@@ -155,11 +155,11 @@ def run():
            "questions": []}
     with connect() as conn:
         for question, topic in QUESTIONS:
-            r = ask(conn, client, question, fusion="rrf")     # the setup this report describes
+            r = ask(conn, client, question, fusion="rrf", embedding="bge-m3")     # the setup this report describes
             r.pop("messages")
             out["questions"].append({"topic": topic, **r})
             print(f"{topic}: {sum(r['times'].values()):.1f} s, check {'OK' if r['check']['ok'] else 'FAILED'}")
-        kept, removed, _ = retrieve(conn, client, PROBE, fusion="rrf")
+        kept, removed, _ = retrieve(conn, client, PROBE, fusion="rrf", embedding="bge-m3")
         out["probe"] = {"question": PROBE, "kept": kept, "removed": removed}
     RESULTS.write_text(json.dumps(out, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     return out

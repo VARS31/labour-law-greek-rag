@@ -30,6 +30,8 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/eval-report.md](docs/eval-report.md); fetch list for Phase 5 in [docs/missing-laws.md](docs/missing-laws.md))
 - 3A: fix the fusion step: five ways of combining the search lists compared, retrieval only (**done**,
   [docs/retrieval-report.md](docs/retrieval-report.md))
+- 3B: the Query Enhancer and multi-query search, retrieval only; qwen3 as the default embedding; repeat filter fixed (**done**,
+  [docs/enhancer-report.md](docs/enhancer-report.md))
 - 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
   rounds → answer → citation check
 - 4: compare one-shot vs agentic on the eval set (quality, time)
@@ -81,19 +83,28 @@ Next: the rest of Phase 3.
   (a normal load leaves unchanged rows alone).
 - Semantic search sets `enable_seqscan = off` around its query: vectors are TOASTed and the planner ignores that
   cost, so otherwise it never uses the HNSW index (pgvector README, "Why isn't a query using an index?").
-- Load: `.venv/bin/python -m labour_rag.load` (upsert by id, embeds only new/changed chunks, deletes stale rows).
+- Load: `.venv/bin/python -m labour_rag.load` (upsert by id, embeds only new/changed chunks with bge-m3, deletes stale rows), then
+  `.venv/bin/python -m labour_rag.embeddings` for the qwen3 vectors of new or changed chunks.
+- Embeddings: `labour_rag/embeddings.py` holds the registry and `DEFAULT_EMBEDDING` (`qwen3-4b`: `qwen3-embedding:4b` with its query
+  instruction, table `chunk_embeddings_qwen3_4b`, about 2.5 hours for all chunks). `bge-m3` stays selectable with `--embedding`, its
+  vectors in the `chunks` table. EMBED_MODEL in `.env` is only for those: `labour_rag.load` needs it to fit `vector(1024)`, so don't
+  put qwen3 there. `scripts/search_report.py` and `scripts/answer_report.py` pin bge-m3.
 - Search: `.venv/bin/python -m labour_rag.search "…"`. Report: `.venv/bin/python scripts/search_report.py`
   (drops and rebuilds the HNSW index to measure; regenerates `docs/search-report.md`; hand-written comments live
   in its `COMMENTS` dict and must be re-checked when results change).
-- All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`.
+- All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
+  in `labour_rag/embeddings.py`.
 - Installed Python packages: duckdb, psycopg[binary]. Ask before adding more.
 
 ## Answering (Phase 1C)
 
-- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks] [--fusion rrf]`: `retrieve.py` (top 30, by default from semantic
-  search alone → skip near-duplicates at 50% word overlap and a 3rd chunk per document → 8 chunks) → one `chat()` call →
-  `citations.check`. `search.hybrid` stays equal-weight RRF, and `scripts/answer_report.py` pins `fusion="rrf"`, so the
-  Phase 1B and 1C reports describe what they measured.
+- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks] [--fusion rrf] [--embedding bge-m3]`: `retrieve.py` (top 30, by default from
+  semantic search alone → skip repeats and a 3rd chunk per document → 8 chunks) → one `chat()` call → `citations.check`.
+  `search.hybrid` stays equal-weight RRF, and `scripts/answer_report.py` pins `fusion="rrf"` and bge-m3, so the Phase 1B and 1C reports
+  describe what they measured.
+- Repeats (`retrieve.select`): 50% word overlap and the same `rule_numbers`, meaning numbers with a unit (`16 εβδομάδες`, `10%`, `27.012
+  δρχ`). Article numbers, decision numbers, dates and ΦΕΚ don't count, or a decision re-issued every year would never be a repeat.
+  Among repeats the newest act takes the older one's place. `number_rule="digits"` is the literal "every digit" reading (`--number-rule digits`).
 - Chat settings in `.env`: CHAT_MODEL (ministral-3:8b), CHAT_TEMPERATURE 0.2, CHAT_NUM_CTX 16384, CHAT_SEED 42.
   `chat()` raises if the prompt fills the context window (Ollama would cut it silently).
 - Model instructions: `prompts/answer.md` (`{closing_note}` is filled from `prompts/closing_note.md`). The user edits
@@ -106,7 +117,7 @@ Next: the rest of Phase 3.
 
 ## Evaluation (Phase 2)
 
-- `.venv/bin/python -m labour_rag.evaluate --split dev [--fusion rrf] [--max-per-document 4] [--retrieval-only] [--embedding qwen3-4b|qwen3-4b-plain]`
+- `.venv/bin/python -m labour_rag.evaluate --split dev [--fusion rrf] [--max-per-document 4] [--retrieval-only] [--embedding bge-m3|qwen3-4b-plain] [--number-rule digits] [--enhancer variants|with-question] [--reuse-enhancer <dir>]`
   writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
   `--rescore <dir>` checks and scores stored answers again without a model or database (chunk text comes from the chunks file).
 - Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). The one-shot baseline has used its
@@ -122,13 +133,24 @@ Next: the rest of Phase 3.
 - Report: `.venv/bin/python -I scripts/eval_report.py` rewrites `docs/eval-report.md` from the stored runs. The hand-written
   `OVERALL`, `COMMENT_B`, `COMMENT_C`, `TEST_COMMENT`, `FAILURES`, `NEXT` and `HAND_FACTS` must be redone when the runs change.
 - Fetch list: `.venv/bin/python -I scripts/missing_laws.py` rewrites `docs/missing-laws.md`; never edit it by hand.
-- Second embedding model: `.venv/bin/python -m labour_rag.embed_experiment` fills `chunk_embeddings_qwen3_4b` (schema in
-  `sql/005_embedding_experiment.sql`) with `qwen3-embedding:4b`, resuming if interrupted. It takes about 2.5 hours; bge-m3 took 5
-  minutes. The `chunks` table and its bge-m3 vectors are untouched.
-- Fusion experiments (Phase 3A): `.venv/bin/python -I scripts/retrieval_report.py --run` runs what's missing of 5 ways × 2
-  embeddings × 2 limits and regenerates `docs/retrieval-report.md`; without `--run` it only rewrites the report. It works out the
-  winner and stops if that isn't `search.DEFAULT_FUSION`. The default embedding stays bge-m3 until the owner decides.
+- Fusion experiments (Phase 3A): `.venv/bin/python -I scripts/retrieval_report.py` rewrites `docs/retrieval-report.md` from the stored
+  runs. It works out the winner and stops if that isn't `search.DEFAULT_FUSION`. Those runs used the old repeat filter, so they can't be
+  repeated with today's code (commit 79de467 has the code). Run names before Phase 3B have no number rule in them.
 - Don't run two Ollama jobs at once while measuring time. A model run's times also move with the machine's load.
+
+## Query Enhancer (Phase 3B)
+
+- `labour_rag/enhancer.py`: one `chat()` call at temperature 0 with a JSON schema. `.venv/bin/python -m labour_rag.enhancer "…" [--search]`.
+  Instructions in `prompts/enhancer.md`; the user edits it. The code drops a law reference or a search phrase with a number the question
+  doesn't contain, because the schema fixes only the shape.
+- The prompt's examples must be on topics outside `eval/questions.jsonl`: `.venv/bin/python -I scripts/check_enhancer_prompt.py`, also run by
+  `tests/test_enhancer.py`. Keep each example on two lines, `Ερώτηση: …` and `JSON: {…}`, so the check can read it.
+- Multi-query search: `search.multi_query`, ranked by `best_similarity` (each chunk keeps its highest similarity to any one search). With
+  `law_refs`, keyword search may add up to 2 chunks after the first 6.
+- Nothing answers through the enhancer yet: `evaluate --enhancer` needs `--retrieval-only`. It added no right chunks on dev and takes about 7 s,
+  so the report suggests using it for the agent's second try. Whether to do that is the owner's call.
+- Report: `.venv/bin/python -I scripts/enhancer_report.py [--run]`. Hand-written `RESULT`, `MISSES`, `EXAMPLES`, `LIMITS` and text in `main`; the
+  script stops if the claims it checks stop holding. Editing the prompt means re-running the enhancer: `--reuse-enhancer` only re-reads stored answers.
 
 ## Code
 

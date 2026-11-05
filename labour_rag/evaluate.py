@@ -3,7 +3,7 @@
     .venv/bin/python -m labour_rag.evaluate --split dev                         # the current one-shot setup
     .venv/bin/python -m labour_rag.evaluate --split dev --max-per-document 4    # another chunk limit
     .venv/bin/python -m labour_rag.evaluate --split dev --retrieval-only        # search only, no model answer
-    .venv/bin/python -m labour_rag.evaluate --split dev --retrieval-only --embedding qwen3-4b
+    .venv/bin/python -m labour_rag.evaluate --split dev --retrieval-only --embedding bge-m3
     .venv/bin/python -m labour_rag.evaluate --split dev --fusion rrf            # another way of combining the lists
     .venv/bin/python -m labour_rag.evaluate --rescore eval/results/<run>        # score stored answers again
 
@@ -19,14 +19,14 @@ import statistics
 import time
 from pathlib import Path
 
-from . import citations, embed_experiment, search
+from . import citations, enhancer, search
 from .ask import NOTE_ADDED, ask, closing_note
 from .config import ROOT
 from .db import connect, friendly_errors
+from .embeddings import DEFAULT_EMBEDDING, EMBEDDINGS, embed_question
 from .key_facts import fact_present
 from .model_client import ModelClient
-from .normalize import normalize
-from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, POOL, select
+from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, NUMBER_RULE, NUMBER_RULES, POOL, select
 
 QUESTIONS = ROOT / "eval/questions.jsonl"
 RESULTS = ROOT / "eval/results"
@@ -35,7 +35,6 @@ CHUNKS = ROOT / "data/processed/labour_chunks.jsonl"
 TOP = 50                # recall@50 and the rank for MRR look this far down the ranked list
 FUSED = 100             # 2 lists of 50 candidates can give up to 100 chunks
 CATEGORIES = ["single_source", "sector_trap", "vocabulary", "follow_reference", "must_refuse", "exact_lookup"]
-EMBEDDINGS = ("bge-m3", "qwen3-4b", "qwen3-4b-plain")
 
 
 def load_questions(split=None, ids=None, path=QUESTIONS):
@@ -205,31 +204,42 @@ def ranked_list(conn, client, question, embedding, fusion):
     """The ranked list for a question with the chosen embedding and fusion, the two lists it was made from, and the
     seconds per step."""
     started = time.perf_counter()
-    if embedding == "bge-m3":
-        vector = client.embed([normalize(question)])[0]
-    else:
-        vector = embed_experiment.embed_question(client, question, instruction=embedding == "qwen3-4b")
+    vector = embed_question(client, question, embedding)
     after_embed = time.perf_counter()
-    if embedding == "bge-m3":
-        semantic = search.semantic(conn, client, question, search.CANDIDATES, vector)
-    else:
-        semantic = embed_experiment.semantic(conn, vector, search.CANDIDATES)
+    semantic = search.semantic(conn, client, question, search.CANDIDATES, vector, embedding)
     keyword = search.keyword(conn, question, search.CANDIDATES)
     fused = search.fuse(fusion, semantic, keyword, question, FUSED)
     return fused, {"semantic": semantic, "keyword": keyword}, {"embed question": after_embed - started,
                                                                "search": time.perf_counter() - after_embed}
 
 
-def evaluate_item(conn, client, item, config):
+def enhanced_list(conn, client, item, config, output):
+    """Like ranked_list, through the Query Enhancer. A stored output saves the model call and keeps its measured time;
+    its raw answer is read again, so the current checks apply."""
+    if output:
+        output = {**output, **enhancer.parse_output(output["raw"], item["question"])}
+    else:
+        output = enhancer.enhance(client, item["question"])
+    started = time.perf_counter()
+    question = item["question"] if enhancer.MODES[config["enhancer"]] else None
+    fused, lists = enhancer.ranked(conn, client, output, question, FUSED, config["embedding"])
+    return fused, lists, {"enhancer": output["seconds"], "search": time.perf_counter() - started}, output
+
+
+def evaluate_item(conn, client, item, config, stored_output=None):
     """One question: where its gold chunks rank, and, unless this is a retrieval-only run, the answer and its scores."""
     max_per_document = config["max_per_document"]
-    fused, lists, times = ranked_list(conn, client, item["question"], config["embedding"], config["fusion"])
     record = {key: item[key] for key in ("id", "category", "split", "answerable", "question")}
+    if config.get("enhancer"):
+        fused, lists, times, record["enhancer"] = enhanced_list(conn, client, item, config, stored_output)
+    else:
+        fused, lists, times = ranked_list(conn, client, item["question"], config["embedding"], config["fusion"])
     if config["retrieval_only"]:
-        kept, removed = select(fused[:POOL], CONTEXT_CHUNKS, max_per_document)
+        kept, removed = select(fused[:POOL], CONTEXT_CHUNKS, max_per_document, config["number_rule"])
         record["times"] = times
     else:
-        result = ask(conn, client, item["question"], max_per_document=max_per_document, fusion=config["fusion"])
+        result = ask(conn, client, item["question"], max_per_document=max_per_document, fusion=config["fusion"],
+                     embedding=config["embedding"])
         kept, removed = result["chunks"], result["removed"]
         record.update({"times": result["times"], "answer": result["answer"], "check": result["check"],
                        "tokens": result["tokens"]})
@@ -249,7 +259,10 @@ SYSTEMS = {"one-shot": evaluate_item}
 def config_name(config):
     kind = "retrieval" if config["retrieval_only"] else "oneshot"
     embedding = f"-{config['embedding']}" if config["embedding"] != "bge-m3" or config["retrieval_only"] else ""
-    return f"{kind}{embedding}-{config['fusion']}-limit{config['max_per_document']}-{config['split']}"
+    # Runs before Phase 3B have no number rule in their name: they used the old repeat filter.
+    rule = f"-{config['number_rule']}" if config.get("number_rule") else ""
+    fusion = f"enhancer-{config['enhancer']}" if config.get("enhancer") else config["fusion"]
+    return f"{kind}{embedding}-{fusion}{rule}-limit{config['max_per_document']}-{config['split']}"
 
 
 def claim_test_run(system, run_name, path=TEST_RUNS, results=RESULTS):
@@ -294,7 +307,8 @@ def rescore(run_dir):
 
 
 def run(args):
-    config = {"split": args.split, "system": args.system, "fusion": args.fusion,
+    config = {"split": args.split, "system": args.system, "fusion": args.fusion, "number_rule": args.number_rule,
+              "enhancer": args.enhancer,
               "max_per_document": args.max_per_document, "embedding": args.embedding,
               "retrieval_only": args.retrieval_only, "context_chunks": CONTEXT_CHUNKS, "pool": POOL}
     run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
@@ -304,14 +318,15 @@ def run(args):
     run_dir.mkdir(parents=True, exist_ok=True)
     records = read_records(run_dir)
     done = {r["id"] for r in records}
+    stored = {r["id"]: r["enhancer"] for r in read_records(args.reuse_enhancer)} if args.reuse_enhancer else {}
     items = [i for i in load_questions(args.split, set(args.ids.split(",")) if args.ids else None)
              if i["id"] not in done]
 
-    client = embed_experiment.client() if args.embedding != "bge-m3" else ModelClient.from_settings()
+    client = ModelClient.from_settings()
     print(f"{run_dir.name}: {len(items)} questions to run, {len(done)} already done", flush=True)
     with connect() as conn:
         for position, item in enumerate(items, 1):
-            record = SYSTEMS[args.system](conn, client, item, config)
+            record = SYSTEMS[args.system](conn, client, item, config, stored.get(item["id"]))
             records.append(record)
             with (run_dir / "items.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -331,8 +346,12 @@ def main():
                         help="how semantic and keyword search are combined")
     parser.add_argument("--max-per-document", type=int, default=MAX_PER_DOCUMENT)
     parser.add_argument("--retrieval-only", action="store_true", help="search only, no model answer (fast)")
-    parser.add_argument("--embedding", choices=EMBEDDINGS, default="bge-m3",
+    parser.add_argument("--embedding", choices=EMBEDDINGS, default=DEFAULT_EMBEDDING,
                         help="vectors for semantic search; qwen3-4b-plain leaves out the query instruction")
+    parser.add_argument("--number-rule", choices=NUMBER_RULES, default=NUMBER_RULE,
+                        help="which numbers must match for two chunks to count as repeats")
+    parser.add_argument("--enhancer", choices=enhancer.MODES, help="search through the Query Enhancer (with --retrieval-only)")
+    parser.add_argument("--reuse-enhancer", type=Path, help="take the enhancer's outputs from this run instead of calling the model")
     parser.add_argument("--ids", help="only these questions, comma-separated (for a quick try, with --name)")
     parser.add_argument("--name", help="name of the run instead of the one made from its settings")
     parser.add_argument("--rescore", type=Path, help="score the stored answers of this run again")
@@ -342,8 +361,8 @@ def main():
     elif not args.split:
         parser.error("--split is required, unless you use --rescore")
     else:
-        if args.embedding != "bge-m3" and not args.retrieval_only:
-            parser.error("the other embedding is only for retrieval: use --retrieval-only")
+        if args.enhancer and not args.retrieval_only:
+            parser.error("the enhancer isn't part of answering yet: use --retrieval-only")
         if args.split == "test" and (args.retrieval_only or args.ids):
             parser.error("a system's one test run must answer every question: no --retrieval-only or --ids")
         run(args)

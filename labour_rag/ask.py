@@ -13,6 +13,7 @@ import time
 from . import citations
 from .config import ROOT
 from .db import connect, friendly_errors
+from .embeddings import DEFAULT_EMBEDDING, EMBEDDINGS
 from .model_client import ModelClient
 from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, retrieve
 from .search import DEFAULT_FUSION, FUSIONS
@@ -56,9 +57,11 @@ def ensure_closing_note(answer):
     return f"{answer.strip()}\n\n{note}", True
 
 
-def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT, fusion=DEFAULT_FUSION):
+def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT, fusion=DEFAULT_FUSION,
+        embedding=DEFAULT_EMBEDDING):
     """Everything about one answer: the chunks, what was removed, the answer, the check and the timings."""
-    chunks, removed, times = retrieve(conn, client, question, k, max_per_document=max_per_document, fusion=fusion)
+    chunks, removed, times = retrieve(conn, client, question, k, max_per_document=max_per_document, fusion=fusion,
+                                      embedding=embedding)
     messages = [{"role": "system", "content": system_prompt()},
                 {"role": "user", "content": user_message(question, chunks)}]
 
@@ -115,9 +118,12 @@ def main():
     parser.add_argument("-k", type=int, default=CONTEXT_CHUNKS, help=f"chunks to give the model ({CONTEXT_CHUNKS})")
     parser.add_argument("--fusion", choices=FUSIONS, default=DEFAULT_FUSION,
                         help=f"how semantic and keyword search are combined ({DEFAULT_FUSION})")
+    parser.add_argument("--embedding", choices=EMBEDDINGS, default=DEFAULT_EMBEDDING,
+                        help=f"whose vectors semantic search uses ({DEFAULT_EMBEDDING})")
     args = parser.parse_args()
     with connect() as conn:
-        print_result(ask(conn, ModelClient.from_settings(), args.question, args.k, fusion=args.fusion), args.show_chunks)
+        print_result(ask(conn, ModelClient.from_settings(), args.question, args.k, fusion=args.fusion,
+                         embedding=args.embedding), args.show_chunks)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ Phase 1B  Database (Docker) + embeddings + search ...... done
 Phase 1C  One-shot answers (baseline) .................. done   0 of 8 fully correct
 Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete
 Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
+Phase 3B  Query Enhancer (retrieval only) .............. done   dev: no gain, 22 of 27 with or without it
 Phase 3   Agentic RAG with LangGraph
 Phase 4   Comparisons (one-shot vs agent, models, maybe Claude Haiku)
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
@@ -208,6 +209,41 @@ Refusals: 2 past results change, both to wrong refusals: `lookup-01` (dev, wrong
 - A filter that was harmless under one order can do damage under another. Changing one step can expose another.
 - The simplest option can win. A rule fixed in advance (within one question, the simpler way) stops me talking myself into something fancier.
 - More right chunks is a promise, not a result. Only a run with the writer can show better answers.
+
+---
+
+## Phase 3B: the Query Enhancer
+
+**Goal:** turn a person's question into searches in the words of the law, and see if more right chunks reach the writer. Retrieval only, on dev. Housekeeping first: qwen3 as the default embedding, and a repeat filter that can't hide a newer rule.
+
+**What we did:** made qwen3 the default, bge-m3 selectable → repeat filter: different numbers are never repeats, newest act wins among real repeats → one call to ministral-3:8b at temperature 0, JSON answer, instructions in `prompts/enhancer.md` → code drops any law or phrase with a number the question doesn't contain → search each phrasing, each chunk keeps its best similarity → measured against 3A's default → [enhancer-report.md](enhancer-report.md).
+
+**Numbers** (qwen3, semantic, limit 2, 27 questions)
+
+| | Without the enhancer | Phrasings alone | Phrasings + the question |
+|---|---|---|---|
+| Right chunk reaches the writer | 22 | 21 | 22 (the same questions) |
+| Right chunk in the top 50 | 27 | 25 | 27 |
+| MRR | 0.61 | 0.57 | 0.63 |
+| Time per question | 0.1 s | 7.5 s | 7.6 s |
+
+Repeat filter: `single-15` on bge-m3 arrives again (17 → 18). On qwen3 no right chunk changes, but the 8 chunks change for 10 questions. Read literally ("every digit"), the rule would remove 6 repeats instead of 45 and hand the writer 28 near-identical pairs instead of 8, so the filter counts numbers with a unit. To check: is that reading right?
+
+**Findings**
+- **The enhancer adds no right chunks.** qwen3 with semantic search had already solved 3 of the 4 vocabulary questions. The fourth needs "εργοτάξια", and the model never says it.
+- **The small model's katharevousa is often not real Greek:** "μισθώδεια", "μεροκαιρομισθούντων", "υπερπερισσότερον". The embeddings forgive a lot of it.
+- **A JSON schema fixes the shape, not the truth.** `law_refs` was clean, but a phrasing named Ν.Δ. 146/1979, which nobody asked about. The rewrite also turned "εργάτης σε εργοστάσιο" into "μισθωτός σε επιχείρηση", the one detail that decides `sector-01`.
+- It does reach different chunks: `sector-05` arrives only through the phrasings, and `lookup-03` is saved by the keyword places.
+- Keeping all the rules means the writer can get 14, 15 and 16 weeks at once. Choosing the newest is now a job for the judge.
+
+**Decisions:** qwen3 is the default (my decision after 3A). Numbers with a unit count for repeats; every digit stays selectable. The enhancer stays out of answering for now. The agent should pass the person's own question along with the phrasings.
+
+**Open:** run the enhancer first on every question, as planned, or only as the agent's second try when the judge says no? The numbers point to the second try.
+
+**Lessons**
+- A negative result is a result. This looked like the obvious fix for vocabulary problems, and a better embedding and simpler search had already done most of it.
+- Read a rule against real data before applying it. Many digits in a chunk only name the act, so "different numbers" had to mean numbers that state something.
+- Check what the model produces in every field, not only the one you worry about.
 
 ---
 

@@ -37,13 +37,16 @@ class ModelClient:
         return cls(s.ollama_host, s.embed_model, s.embed_dim, s.chat_model, s.chat_temperature, s.chat_num_ctx,
                    s.chat_seed)
 
-    def chat(self, messages, **options):
+    def chat(self, messages, response_format=None, **options):
         """One answer from the chat model for a list of {"role", "content"} messages. Extra keyword arguments
-        override the options from .env (e.g. temperature=0)."""
+        override the options from .env (e.g. temperature=0). response_format is a JSON schema the answer must follow:
+        it fixes the shape of the answer, not what the model puts in it."""
         opts = {**self.chat_options, **options}
         started = time.perf_counter()
-        data = self._post("/api/chat", {"model": self.chat_model, "messages": messages, "stream": False,
-                                        "options": opts})
+        payload = {"model": self.chat_model, "messages": messages, "stream": False, "options": opts}
+        if response_format:
+            payload["format"] = response_format
+        data = self._post("/api/chat", payload)
         prompt_tokens = data.get("prompt_eval_count", 0)
         self.last_chat = {"seconds": time.perf_counter() - started, "prompt_tokens": prompt_tokens,
                           "answer_tokens": data.get("eval_count", 0),
@@ -54,20 +57,21 @@ class ModelClient:
                              "raise CHAT_NUM_CTX or send fewer chunks")
         return data["message"]["content"]
 
-    def embed(self, texts):
-        """One embedding per text. A text longer than the model's context raises an error instead of being
-        cut silently ("truncate": false)."""
+    def embed(self, texts, model=None, dim=None):
+        """One embedding per text, from EMBED_MODEL unless another model and its vector size are given. A text longer
+        than the model's context raises an error instead of being cut silently ("truncate": false)."""
         texts = list(texts)
+        model, dim = model or self.embed_model, dim or self.embed_dim
         started = time.perf_counter()
-        data = self._post("/api/embed", {"model": self.embed_model, "input": texts, "truncate": False})
+        data = self._post("/api/embed", {"model": model, "input": texts, "truncate": False})
         self.seconds += time.perf_counter() - started
         self.tokens += data.get("prompt_eval_count", 0)
         vectors = data["embeddings"]
         if len(vectors) != len(texts):
             raise ModelError(f"asked for {len(texts)} embeddings, got {len(vectors)}")
-        if self.embed_dim and any(len(v) != self.embed_dim for v in vectors):
-            raise ModelError(f"{self.embed_model} returned vectors of size {len(vectors[0])}, expected "
-                             f"{self.embed_dim} (EMBED_DIM and the vector column must match the model)")
+        if dim and any(len(v) != dim for v in vectors):
+            raise ModelError(f"{model} returned vectors of size {len(vectors[0])}, expected "
+                             f"{dim} (EMBED_DIM and the vector column must match the model)")
         return vectors
 
     def _post(self, path, payload):
