@@ -15,7 +15,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
 - [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
 - [x] Phase 3B: The Query Enhancer: one model call that rewrites a question into searches in the words of the law. Results are in [docs/enhancer-report.md](docs/enhancer-report.md): it adds no right chunks, 22 of 27 dev questions with or without it, and takes about 7 seconds. This step also made qwen3-embedding:4b the default and stopped the repeat filter from hiding newer rules.
-- [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
+- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 15 of 26 answers are complete against 12 for one-shot, at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
 - [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
@@ -23,8 +23,9 @@ Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata
 
 ## How it works
 
-The index, the search, the rewriter, the one-shot answer with its citation check and the measuring are
-built. The judge and the loop that joins them are the plan, so answers don't go through the rewriter yet. Since
+All of it is built. There are two ways to answer: one-shot (`labour_rag.ask`), which searches once and answers, and
+the agent (`labour_rag.agent`), which is the diagram below. The agent searches the plain question first and uses the
+rewriter only when the judge asks for another try, because Phase 3B showed the rewriter adds little as a first step. Since
 Phase 3A answers use semantic search alone by default, because mixing it with keyword search lost more than it
 found (`--fusion rrf` brings back the old way). Since Phase 3B search uses qwen3-embedding:4b (`--embedding bge-m3`
 brings back the old model).
@@ -50,17 +51,18 @@ ANSWER A QUESTION
   question
         |
         v
-  rewriter ........................ built     Phase 3B <-----+
-        |                                                    |
-        v                                                    |
-  search tools .................... built     Phase 1B, 3A   |
-        |                                                    |
-        v                                                    |
-  judge: enough to answer? ........ planned   Phase 3        |
-        |   no, and fewer than 3 rounds done: try again -----+
-        |   yes, or 3 rounds done
+  search the plain question ....... built     Phase 1B, 3A
+        |
         v
-  answer with citations ........... built     Phase 1C
+  judge: which chunks fit,  ....... built     Phase 3C <------------+
+  and what next?                                                    |
+        |   search again, at most 3 rounds in all:                  |
+        |     rewriter, laws it named, next articles .. built  3B, 3C
+        |   refuse: the code says so, and names the law if known
+        |   answer: go on
+        v
+  answer from approved chunks,
+  with citations .................. built     Phase 1C, 3C
         |
         v
   citation check .................. built     Phase 1C
@@ -78,7 +80,7 @@ MEASURE IT
   compare one-shot and agentic .... planned   Phase 4
 ```
 
-The one-shot baseline from Phase 1C skips the rewriter and the judge. It searches once and answers.
+The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
 Phase 2 measured it on the test questions, and Phase 4 compares the two versions on the same questions.
 
 ## Project layout
@@ -88,11 +90,11 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `README.md` | This file. |
 | `CLAUDE.md` | Project notes and working rules for Claude Code. |
 | `LICENSE` | MIT licence for the code in this repository. |
-| `requirements.txt` | Python packages: duckdb (reads the dataset) and psycopg (talks to Postgres). |
+| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres) and LangGraph (the agent loop), plus everything LangGraph brings along. |
 | `docker-compose.yml` | Postgres 17 with pgvector, on port 5433. |
 | `.env.example` | Template for `.env`: database password, ports, and the Ollama model names and settings. |
 | `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
-| `prompts/` | The instructions for the answering model (`answer.md`), the note every answer ends with (`closing_note.md`) and the instructions for the Query Enhancer (`enhancer.md`). Edit them freely. |
+| `prompts/` | The instructions for the answering model (`answer.md`), the note every answer ends with (`closing_note.md`), and the instructions for the Query Enhancer (`enhancer.md`) and the judge (`judge.md`). Edit them freely. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
 | `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
 | `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
@@ -100,11 +102,12 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `docs/eval-report.md` | Phase 2 results: what the test set contains, the numbers per experiment and category, and the most instructive failures. |
 | `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
 | `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
+| `docs/agent-report.md` | Phase 3C results: the agent against one-shot, what the extra rounds did, three traced examples and the most instructive failures. |
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
 | `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`) and which system has used its one test run (`test_runs.json`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
@@ -113,6 +116,7 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `scripts/eval_report.py` | Compares the stored runs and writes the evaluation report. |
 | `scripts/retrieval_report.py` | Writes the retrieval report from the stored fusion runs. |
 | `scripts/enhancer_report.py` | Runs the enhancer measurements and writes the enhancer report. |
+| `scripts/agent_report.py` | Compares the stored agent and one-shot runs and writes the agent report. |
 | `scripts/check_enhancer_prompt.py` | Checks that the examples in the enhancer's prompt are on topics that aren't in the test set. |
 | `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
@@ -254,6 +258,8 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Search | `.venv/bin/python -m labour_rag.search "your question"` |
 | Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full, `--fusion rrf` for the old way of searching) |
 | Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone, `--fusion rrf` for another way of combining the lists) |
+| Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
+| Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
 | See what the Query Enhancer makes of a question | `.venv/bin/python -m labour_rag.enhancer "your question" --search` |
 | Measure the enhancer and rewrite its report | `.venv/bin/python -I scripts/enhancer_report.py --run` |
 | Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
@@ -310,4 +316,7 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
   repeats, so a question on maternity leave can get 14, 15 and 16 weeks at once. Nothing yet tells the model to
   prefer the newest. See [docs/enhancer-report.md](docs/enhancer-report.md).
 - **The Query Enhancer's katharevousa is often not real Greek,** and it can't find a word of the law it doesn't
-  know. It's built and measured, but answers don't use it yet.
+  know. Only the agent's second try uses it.
+- **The agent is slow, and the judge can be wrong.** A question takes about 3 minutes, most of it the judge. It can
+  reject the right chunk, and the writer can still misread a chunk it was given. See
+  [docs/agent-report.md](docs/agent-report.md).

@@ -15,7 +15,7 @@ from . import search
 from .config import ROOT
 from .db import connect, friendly_errors
 from .embeddings import DEFAULT_EMBEDDING
-from .law_mentions import find_mentions, label
+from .law_mentions import find_mentions, law_name
 from .model_client import ModelClient
 from .normalize import normalize
 from .retrieve import select
@@ -86,7 +86,7 @@ def law_keywords(law_refs):
     words = []
     for ref in law_refs:
         mentions = find_mentions(ref, any_year=True)
-        words.append(" ".join(label(m.abbr, m.number, m.year) for m in mentions) if mentions else ref)
+        words.append(" ".join(law_name(m) for m in mentions) if mentions else ref)
     return " ".join(words)
 
 

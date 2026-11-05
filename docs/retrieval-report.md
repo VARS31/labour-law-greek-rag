@@ -108,7 +108,7 @@ An answer now counts as a refusal if it says near its start that the answer isn'
 | Dev, limit 2 | `lookup-01` | no | wrong refusal | failed, now passes |
 | Test, limit 2 | `lookup-02` | no | wrong refusal | same |
 
-`lookup-01` wrote «Το άρθρο 2 του Ν. 1837/1989 δεν αναφέρεται στα αποσπάσματα». It had no citation, so it used to fail the citation check as an answer that cites nothing. That's why the check on dev goes from 10 to 11 of 26. `lookup-02` is a test question, so I didn't read its answer. Its numbers fit a refusal (0 of 2 key facts, right chunk not among the 8), but only a person reading it can confirm that. Nothing else in the past runs changes, and the eight Phase 1C answers don't either. [`docs/eval-report.md`](eval-report.md) now shows these numbers.
+`lookup-01` wrote «Το άρθρο 2 του Ν. 1837/1989 δεν αναφέρεται στα αποσπάσματα». It had no citation, so it used to fail the citation check as an answer that cites nothing. That's why the check on dev goes from 10 to 11 of 26. `lookup-02` is a test question, so I didn't read its answer. The project owner did: it is a real refusal, so the new rule is right, and a wrong refusal caused by search, because its right chunk ranked 16th. Nothing else in the past runs changes, and the eight Phase 1C answers don't either. [`docs/eval-report.md`](eval-report.md) now shows these numbers.
 
 ## Test guard
 

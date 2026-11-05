@@ -89,12 +89,23 @@ def find_mentions(text, any_year=False):
     return [f for f in found if any_year or f.year is None or 1830 <= f.year <= 2005]
 
 
-_ARTICLE_NUMBER = re.compile(r"(?<!\w)αρθρ\w*\.?\s*\d+")
+_ARTICLE_NUMBER = re.compile(r"(?<!\w)αρθρ\w*\.?\s*(\d+)")
+
+
+def law_name(mention):
+    """A mention in the form chunk headers use: "Ν. 1837/1989"."""
+    return f"{mention.abbr} {mention.number}/{mention.year}" if mention.year else f"{mention.abbr} {mention.number}"
+
+
+def law_references(question):
+    """The laws and articles a question names: ["Ν. 1837/1989", "άρθρο 2"]."""
+    laws = [law_name(m) for m in find_mentions(question, any_year=True)]
+    return laws + [f"άρθρο {n}" for n in _ARTICLE_NUMBER.findall(fold(question))]
 
 
 def names_a_law(question):
     """True if a question names a law or an article: "Ν. 1837/1989", "άρθρο 2"."""
-    return bool(find_mentions(question, any_year=True) or _ARTICLE_NUMBER.search(fold(question)))
+    return bool(law_references(question))
 
 
 def resolve(mentions, documents, min_number_without_year=100):

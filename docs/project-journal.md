@@ -14,7 +14,8 @@ Phase 1C  One-shot answers (baseline) .................. done   0 of 8 fully cor
 Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete
 Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
 Phase 3B  Query Enhancer (retrieval only) .............. done   dev: no gain, 22 of 27 with or without it
-Phase 3   Agentic RAG with LangGraph
+Phase 3C  Agent loop with LangGraph .................... done   dev: 15 of 26 complete vs 12, 167 s vs 63 s
+Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
 Phase 4   Comparisons (one-shot vs agent, models, maybe Claude Haiku)
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
@@ -244,6 +245,46 @@ Repeat filter: `single-15` on bge-m3 arrives again (17 → 18). On qwen3 no righ
 - A negative result is a result. This looked like the obvious fix for vocabulary problems, and a better embedding and simpler search had already done most of it.
 - Read a rule against real data before applying it. Many digits in a chunk only name the act, so "different numbers" had to mean numbers that state something.
 - Check what the model produces in every field, not only the one you worry about.
+
+---
+
+## Phase 3C: the agent loop
+
+**Goal:** join search, Judge and writer into an agent with LangGraph, and measure it with full answers against the one-shot.
+
+**What we did:** LangGraph 1.2.20 installed, 37 packages pinned, tracing off → Judge in `prompts/judge.md`: a verdict per chunk, then answer, search again or refuse → round 2 uses the enhancer, laws the Judge named and next articles → writer sees only approved chunks and my original question → refusals and "law not in our data" written by the code → `--trace` → full dev run → [agent-report.md](agent-report.md).
+
+**Numbers** (32 dev questions; 26 answerable, 6 to refuse)
+
+| | One-shot (qwen3, semantic, limit 2) | Agent |
+|---|---|---|
+| Key facts found | 68% | 76% |
+| Every key fact, by matching | 12 | 16 |
+| Every key fact, checked by hand | 12 | 15 |
+| Correct refusals | 4 of 6 | 5 of 6 |
+| Wrong refusals | 0 | 2 |
+| Writer saw the right chunk | 22 of 27 | 22 of 27 (not the same ones) |
+| Rounds | 1 | 23 took 1, 5 took 2, 4 took 3 |
+| Median time per question | 63 s | 167 s |
+
+Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
+
+**Findings**
+- **The Judge's filter brings the gain, not the extra rounds.** The writer reads 3.4 chunks instead of 8. It rejects rules for other groups, and on `single-15` it kept 16 weeks and dropped 14 and 15.
+- **Round 2 rescued nothing on dev.** The right chunk arrives in round 1 or never. Of 9 questions that searched again, 1 got better, 2 got worse, 6 changed nothing. 22 minutes spent.
+- **The Judge can undo itself.** `vocab-03`: approved the right chunk in round 1, rejected it in round 2.
+- **The score hid a wrong answer.** `sector-01` counts as complete, but it tells a worker with six years "5 days" where the rule says 30. The writer is now the biggest source of failures.
+- A false claim caught in the trial: the Judge named the decree it was reading, and the code said "its text isn't in our data". Fixed. All 11 such claims in the full run are true.
+- `lookup-02` on test: my verdict is a real refusal, so the new rule is right, and a wrong refusal caused by search (right chunk at rank 16).
+
+**Decisions:** plain search first, enhancer only on the second try. Writer sees my original question, never the rewrite. Code writes refusals. The agent's test run waits for Phase 4.
+
+**Open:** stop when a right chunk is in hand (3 of 9 went on anyway)? Let round 2 read further down the plain list (`single-09` at rank 15, `vocab-01` at rank 19)? That's the likeliest real rescue, and it's untested.
+
+**Lessons**
+- Read the answers. A score that can't read meaning hid a wrong answer in the headline number.
+- More rounds aren't more help by themselves. Each round is another chance to change a right decision.
+- Long runs need `caffeinate`, and a run started from a session dies with the session. Save each result as it finishes, so stopping costs nothing.
 
 ---
 

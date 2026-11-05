@@ -92,6 +92,19 @@ def score_answer(item, answer, chunks, check, note):
             "refused": check["refusal"]}
 
 
+def agent_problem(record):
+    """Why an agent's answer fell short: the right chunk never reached the Judge (search), the Judge didn't approve it or let
+    through a question it should have refused (judge), or the writer had the chunk and still got it wrong (writer)."""
+    retrieval, score = record["retrieval"], record["score"]
+    if record["answerable"]:
+        if score["fact_share"] == 1 and not score["refused"]:
+            return None
+        if retrieval and not retrieval["gold_judged"]:
+            return "search"
+        return "judge" if retrieval and not retrieval["in_context"] else "writer"
+    return None if score["refused"] else "judge"
+
+
 def problem(record):
     """Why an answer fell short, in the words of the report: search didn't bring the gold chunk to the model, or the
     model had it and still got it wrong. None when nothing fell short, or when the run has no answers."""
@@ -145,6 +158,13 @@ def summarise_group(records):
             "search_problems": sum(problem(r) == "search" for r in answered),
             "reading_problems": sum(problem(r) == "reading" for r in answered),
         })
+    agent_records = [r for r in records if "rounds" in r]
+    if agent_records:
+        out.update({"rounds_mean": _mean(len(r["rounds"]) for r in agent_records),
+                    "rounds_used": {str(n): sum(len(r["rounds"]) == n for r in agent_records) for n in (1, 2, 3)},
+                    "refused_by_judge": sum(r["refused_by_judge"] for r in agent_records),
+                    "gold_judged": _share(r["retrieval"]["gold_judged"] for r in agent_records if r["retrieval"]),
+                    "agent_problems": {kind: sum(agent_problem(r) == kind for r in agent_records) for kind in ("search", "judge", "writer")}})
     return out
 
 
@@ -252,12 +272,35 @@ def evaluate_item(conn, client, item, config, stored_output=None):
     return record
 
 
-# Who may use the test split, and how each answers one question. Phase 4 adds the agent.
-SYSTEMS = {"one-shot": evaluate_item}
+def evaluate_agent_item(conn, client, item, config, stored_output=None):
+    """One question through the agent. LangGraph takes seconds to import, so only an agent run pays for it."""
+    from . import agent
+    result = agent.run(conn, client, item["question"], config["embedding"])
+    record = {key: item[key] for key in ("id", "category", "split", "answerable", "question")}
+    record.update({"times": result["times"], "answer": result["answer"], "check": result["check"], "tokens": result["tokens"],
+                   "refused_by_judge": result["refused_by_judge"], "laws_missing": result["laws_missing"],
+                   "laws_found": result["laws_found"], "rounds": result["rounds"]})
+    record["score"] = score_answer(item, result["answer"], result["chunks"], result["check"], closing_note())
+    first = result["first"]
+    record["retrieval"] = score_retrieval(item, first["fused"], result["chunks"], first["lists"], first["removed"])
+    if record["retrieval"]:
+        judged = {c["id"]: r["round"] for r in reversed(result["rounds"]) for c in r["chunks"]}
+        wanted = gold_chunks(item) & judged.keys()
+        record["retrieval"]["gold_judged"] = bool(wanted)
+        record["retrieval"]["gold_first_round"] = min((judged[c] for c in wanted), default=None)
+    record["chunks"] = [{"n": c["n"], "id": c["id"], "doc_id": c["doc_id"], "citation": c["citation"], "article": c["article"]}
+                        for c in result["chunks"]]
+    record["removed"] = {key: sum(r["removed"][key] for r in result["rounds"]) for key in ("near_duplicate", "same_document")}
+    return record
+
+
+# Who may use the test split, and how each answers one question.
+SYSTEMS = {"one-shot": evaluate_item, "agent": evaluate_agent_item}
+AGENT_LIMIT = 4         # agent.LIMIT, here so that importing this module doesn't import LangGraph
 
 
 def config_name(config):
-    kind = "retrieval" if config["retrieval_only"] else "oneshot"
+    kind = "agent" if config.get("system") == "agent" else "retrieval" if config["retrieval_only"] else "oneshot"
     embedding = f"-{config['embedding']}" if config["embedding"] != "bge-m3" or config["retrieval_only"] else ""
     # Runs before Phase 3B have no number rule in their name: they used the old repeat filter.
     rule = f"-{config['number_rule']}" if config.get("number_rule") else ""
@@ -311,6 +354,8 @@ def run(args):
               "enhancer": args.enhancer,
               "max_per_document": args.max_per_document, "embedding": args.embedding,
               "retrieval_only": args.retrieval_only, "context_chunks": CONTEXT_CHUNKS, "pool": POOL}
+    if args.system == "agent":
+        config["max_per_document"] = AGENT_LIMIT
     run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
     if args.split == "test":
         run_name = claim_test_run(args.system, run_name)
@@ -361,6 +406,10 @@ def main():
     elif not args.split:
         parser.error("--split is required, unless you use --rescore")
     else:
+        if args.system == "agent" and args.split == "test":
+            parser.error("the agent's one test run belongs to Phase 4: ask the project owner first")
+        if args.system == "agent" and (args.retrieval_only or args.enhancer):
+            parser.error("the agent always writes an answer and calls the enhancer itself")
         if args.enhancer and not args.retrieval_only:
             parser.error("the enhancer isn't part of answering yet: use --retrieval-only")
         if args.split == "test" and (args.retrieval_only or args.ids):

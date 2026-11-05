@@ -458,6 +458,45 @@ is picked).
 **Tests:** `tests/test_enhancer.py` (reading the model's answer, dropping invented laws, combining searches, the prompt check) and
 `tests/test_answering.py` (what counts as a repeat, which act is kept).
 
+## Phase 3C: the agent
+
+```
+ the question
+        │
+        │  agent.py          the graph, built with LangGraph: which step comes after which
+        │  search.py         the plain question; keyword search too if it names a law or article
+        ▼
+ judge.py                    ministral-3:8b gives each chunk a verdict, then: answer, search again or refuse
+        │
+        ├─ search again      enhancer.py's phrasings, laws the Judge named, articles next to approved chunks (at most 3 rounds)
+        ├─ refuse            the code writes it, and names the law if it's known
+        ▼
+ write                       ministral-3:8b, from the approved chunks and the person's own question
+        │
+        │  citations.py      the same citation check as one-shot
+        ▼
+ answer + every round on record                             (agent.py --trace prints them)
+```
+
+### What changed in the code
+
+- **`labour_rag/agent.py`** is new. It says what happens after what, and keeps a record of each round.
+  a question → the answer, the chunks the writer saw, and for each round the chunks, verdicts, reasons and time.
+- **`labour_rag/judge.py`** is new.
+  a question + chunks → a verdict per chunk and a decision. The code checks what the model says: a "newer" act must really be newer, and a law it names must be cited in the chunks.
+- **`labour_rag/search.py`** gained `neighbours`.
+  a chunk → the articles numbered one below and one above it. By number, because a document's articles are stored shuffled.
+- **`labour_rag/law_mentions.py`** gained `law_references`, which finds the laws and articles a question names.
+- **`labour_rag/evaluate.py`** gained `--system agent` and `agent_problem`, which labels a failure search, Judge or writer.
+
+### The scripts and the prompt
+
+- **`prompts/judge.md`** holds the Judge's instructions and one example. It can be edited without touching any code.
+- **`scripts/agent_report.py`** compares the stored runs and adds my hand-written verdicts.
+  `eval/results/` → `docs/agent-report.md`. It stops if a hand-written claim no longer matches the runs.
+
+**Tests:** `tests/test_agent.py` replaces the database and the models with stand-ins, so it can test the routing on its own: when the agent writes, refuses or searches again, what the writer sees, and that LangSmith stays off.
+
 ## Running the tests
 
 ```bash
@@ -465,7 +504,7 @@ is picked).
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 171 of them, almost all with real strings from the data, and they run in under a second. If a later
+are 204 of them, almost all with real strings from the data, and they run in a few seconds. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

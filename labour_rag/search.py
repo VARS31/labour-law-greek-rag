@@ -154,6 +154,19 @@ def fuse(fusion, semantic_results, keyword_results, question, k=10):
     return _numbered(chunks, lists, k)
 
 
+def neighbours(conn, chunk_id):
+    """The chunks next to a chunk in its document: articles numbered one below and one above, or, for a chunk with no article
+    number or the other windows of a long article, the chunks before and after it. By number, because the articles of a
+    document are stored shuffled (Άρθρο 1, Άρθρο 10, Άρθρο 11)."""
+    doc_id, seq, numbers = conn.execute("SELECT doc_id, seq, article_numbers FROM chunks WHERE id = %s", [chunk_id]).fetchone()
+    near = [min(numbers) - 1, max(numbers) + 1] if numbers else []
+    return _rows(conn.execute(f"""
+        SELECT {_COLUMNS}, 0.0 AS score FROM chunks
+        WHERE doc_id = %(doc)s AND id <> %(id)s
+          AND (article_numbers && %(near)s::int[] OR (article_numbers = %(own)s::int[] AND seq = ANY(%(seqs)s)))
+        ORDER BY seq""", {"doc": doc_id, "id": chunk_id, "near": near, "own": numbers or [], "seqs": [seq - 1, seq + 1]}))
+
+
 def best_similarity(lists):
     """One ranked list from the semantic lists of several queries. Every chunk keeps its highest similarity to any one
     query, so being found by many queries earns nothing, which is what went wrong with RRF. The scores can be compared

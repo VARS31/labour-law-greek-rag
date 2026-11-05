@@ -10,7 +10,7 @@ Learning project: **agentic RAG over Greek labour law**, fully local.
 - Models: local only, via **Ollama** (embeddings + LLM). No paid APIs.
 - Storage: **Postgres + pgvector in Docker on port 5433**. Postgres.app already runs on 5432; leave it alone.
 - Search: semantic (vectors) plus accent-insensitive keyword search.
-- Agent: a **LangGraph** loop: rewriter (incl. katharevousa variants) → search tools → judge → max
+- Agent: a **LangGraph** loop: search → judge → search again (rewriter with katharevousa variants) → max
   **3 rounds** → answer → citation check.
 - Evaluation: an eval set (questions with expected answers and sources), then **one-shot RAG** vs
   **agentic RAG** on it, for quality and time.
@@ -32,15 +32,15 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/retrieval-report.md](docs/retrieval-report.md))
 - 3B: the Query Enhancer and multi-query search, retrieval only; qwen3 as the default embedding; repeat filter fixed (**done**,
   [docs/enhancer-report.md](docs/enhancer-report.md))
-- 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
-  rounds → answer → citation check
+- 3C: agentic RAG with LangGraph: search → judge → search again, max 3 rounds → answer → citation check (**done**,
+  [docs/agent-report.md](docs/agent-report.md))
 - 4: compare one-shot vs agentic on the eval set (quality, time)
 - 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: the rest of Phase 3.
+Next: Phase 4.
 
 - **After each phase, update the README status, layout and diagram.**
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
@@ -94,7 +94,7 @@ Next: the rest of Phase 3.
   in its `COMMENTS` dict and must be re-checked when results change).
 - All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
   in `labour_rag/embeddings.py`.
-- Installed Python packages: duckdb, psycopg[binary]. Ask before adding more.
+- Installed Python packages: duckdb, psycopg[binary], langgraph and what it brings (37 packages, all pinned in `requirements.txt`). Ask before adding more.
 
 ## Answering (Phase 1C)
 
@@ -121,8 +121,8 @@ Next: the rest of Phase 3.
   writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
   `--rescore <dir>` checks and scores stored answers again without a model or database (chunk text comes from the chunks file).
 - Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). The one-shot baseline has used its
-  run (`2026-11-04_oneshot-limit2-test`, equal-weight RRF). `--system` only offers systems in `evaluate.SYSTEMS`; Phase 4 adds the
-  agent there. Don't tune on the test split and don't read its answers: report which test items change by id only. A fresh test
+  run (`2026-11-04_oneshot-limit2-test`, equal-weight RRF). `evaluate` refuses `--system agent --split test`: the agent's one run belongs to Phase 4, so
+  ask the owner first. Don't tune on the test split and don't read its answers: report which test items change by id only. A fresh test
   needs new questions.
 - Refusals: `citations.is_refusal`, the prompt's "Δεν βρέθηκε" or other clear words near the start of the answer, unless the
   sentence goes on with "αλλά". It doesn't check that a refusal names where the rule would be.
@@ -147,10 +147,22 @@ Next: the rest of Phase 3.
   `tests/test_enhancer.py`. Keep each example on two lines, `Ερώτηση: …` and `JSON: {…}`, so the check can read it.
 - Multi-query search: `search.multi_query`, ranked by `best_similarity` (each chunk keeps its highest similarity to any one search). With
   `law_refs`, keyword search may add up to 2 chunks after the first 6.
-- Nothing answers through the enhancer yet: `evaluate --enhancer` needs `--retrieval-only`. It added no right chunks on dev and takes about 7 s,
-  so the report suggests using it for the agent's second try. Whether to do that is the owner's call.
+- It added no right chunks as a first step on dev and takes about 7 s, so only the agent's round 2 and 3 use it. `evaluate --enhancer` measures it alone and
+  needs `--retrieval-only`.
 - Report: `.venv/bin/python -I scripts/enhancer_report.py [--run]`. Hand-written `RESULT`, `MISSES`, `EXAMPLES`, `LIMITS` and text in `main`; the
   script stops if the claims it checks stop holding. Editing the prompt means re-running the enhancer: `--reuse-enhancer` only re-reads stored answers.
+
+## Agent (Phase 3C)
+
+- `labour_rag/agent.py` is the LangGraph graph: `.venv/bin/python -m labour_rag.agent "…" [--trace]`. Its nodes close over the connection and the client. It switches LangSmith tracing
+  off before importing LangGraph; keep that first.
+- `labour_rag/judge.py`: one `chat()` call at temperature 0 with a JSON schema; the last round's schema can't say `search_again`. Instructions in `prompts/judge.md`; the user edits it, and its
+  example must stay off the test set (`tests/test_agent.py` checks). Approved means relevant or partly, doesn't fail to apply, and isn't replaced by a really newer approved act.
+- The code, not the model, writes refusals and says when a law isn't in our data (`law_in_data`). A law the Judge names must be cited in the chunks (`named_laws`): matching digits aren't enough,
+  because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
+- Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
+  started from Claude's session stops when the session does, and continues if started again the same day.
+- Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `RESULT`, `ROUNDS`, `FAILURES`, `NEXT`, `LIMITS` and `WRONG_THOUGH_COMPLETE`, from reading the answers; the script stops if the claims it checks stop holding.
 
 ## Code
 
