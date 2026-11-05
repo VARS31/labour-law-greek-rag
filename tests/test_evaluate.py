@@ -1,12 +1,13 @@
 """Phase 2 parts that run without a database or model: matching key facts and scoring."""
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from labour_rag.evaluate import (claim_test_run, config_name, first_rank, gold_documents, problem, score_answer,
-                                 score_retrieval, summarise_group)
+from labour_rag.evaluate import (FROZEN_TAG, TEST_SETTINGS, claim_test_run, config_name, first_rank, frozen_changes, gold_documents,
+                                 problem, score_answer, score_retrieval, summarise_group, test_run_refusal)
 from labour_rag.key_facts import fact_present, stem
 from scripts.check_eval_set import copied_run, quote_in
 from scripts.retrieval_report import chance_of_split, pick_winner
@@ -106,6 +107,55 @@ class TestGuard(unittest.TestCase):
         self.assertEqual(self.claim("one-shot", "2026-11-05_a-test"), "2026-11-04_a-test")
         with self.assertRaises(SystemExit):
             self.claim("one-shot", "2026-11-05_other-settings-test")
+
+
+class WhoMayUseTheTestSplit(unittest.TestCase):
+    def test_exactly_two_systems_have_a_run_left(self):
+        self.assertEqual(set(TEST_SETTINGS), {"oneshot-v2", "agent"})
+        self.assertIn("no test run left", test_run_refusal("one-shot", TEST_SETTINGS["oneshot-v2"]))
+
+    def test_each_runs_with_its_own_settings(self):
+        for system, settings in TEST_SETTINGS.items():
+            self.assertIsNone(test_run_refusal(system, {**settings, "split": "test", "pool": 30}))
+
+    def test_other_settings_are_refused(self):
+        v2 = TEST_SETTINGS["oneshot-v2"]
+        for change in ({"fusion": "rrf"}, {"max_per_document": 4}, {"embedding": "bge-m3"}, {"number_rule": "digits"}, {"enhancer": "variants"}):
+            self.assertIn(next(iter(change)), test_run_refusal("oneshot-v2", {**v2, **change}))
+        self.assertIn("max_per_document", test_run_refusal("agent", {**TEST_SETTINGS["agent"], "max_per_document": 2}))
+
+
+class FrozenCode(unittest.TestCase):
+    """In a small git repository of its own, so that these tests don't depend on the state of this one."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        (self.root / "labour_rag").mkdir()
+        self.judge, self.evaluate = self.root / "labour_rag/judge.py", self.root / "labour_rag/evaluate.py"
+        self.judge.write_text("a\n", encoding="utf-8")
+        self.evaluate.write_text("a\n", encoding="utf-8")
+        self.git("init", "-q")
+        self.git("add", ".")
+        self.git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "x")
+
+    def git(self, *arguments):
+        subprocess.run(["git", *arguments], cwd=self.root, check=True, capture_output=True)
+
+    def test_without_the_tag_it_counts_as_changed(self):
+        self.assertTrue(frozen_changes(self.root))
+
+    def test_a_change_to_the_frozen_code_shows(self):
+        self.git("tag", FROZEN_TAG)
+        self.assertEqual(frozen_changes(self.root), "")
+        self.judge.write_text("b\n", encoding="utf-8")
+        self.assertIn("judge.py", frozen_changes(self.root))
+
+    def test_evaluate_stays_open(self):
+        self.git("tag", FROZEN_TAG)
+        self.evaluate.write_text("b\n", encoding="utf-8")
+        self.assertEqual(frozen_changes(self.root), "")
 
 
 class Winner(unittest.TestCase):

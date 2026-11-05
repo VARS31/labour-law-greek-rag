@@ -9,13 +9,17 @@
 
 Each run writes eval/results/<date>_<config>/ with items.jsonl (one line per question, added as it finishes, so an
 interrupted run continues), summary.json and summary.md. The test split runs once per named system, recorded in
-eval/test_runs.json.
+eval/test_runs.json, and only the systems in TEST_SETTINGS may still use it:
+
+    .venv/bin/python -m labour_rag.evaluate --split test --system oneshot-v2
+    .venv/bin/python -m labour_rag.evaluate --split test --system agent --name agent-3c1-qwen3-4b-semantic-units-limit4-test
 """
 
 import argparse
 import datetime
 import json
 import statistics
+import subprocess
 import time
 from pathlib import Path
 
@@ -295,9 +299,30 @@ def evaluate_agent_item(conn, client, item, config, stored_output=None):
     return record
 
 
-# Who may use the test split, and how each answers one question.
-SYSTEMS = {"one-shot": evaluate_item, "agent": evaluate_agent_item}
+# The named systems, and how each answers one question. "one-shot" with its old settings is the Phase 2 baseline.
+SYSTEMS = {"one-shot": evaluate_item, "oneshot-v2": evaluate_item, "agent": evaluate_agent_item}
 AGENT_LIMIT = 4         # agent.LIMIT, here so that importing this module doesn't import LangGraph
+FROZEN_TAG = "agent-frozen-3c1"
+# The systems that still have a test run, and the settings that make them that system.
+TEST_SETTINGS = {"oneshot-v2": {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": 2, "embedding": "qwen3-4b"},
+                 "agent": {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": AGENT_LIMIT, "embedding": "qwen3-4b"}}
+
+
+def test_run_refusal(system, config):
+    """Why this system can't use the test split with these settings, or None if it can."""
+    wanted = TEST_SETTINGS.get(system)
+    if wanted is None:
+        return f"{system} has no test run left: only {' and '.join(TEST_SETTINGS)} have one, once each."
+    different = [key for key, value in wanted.items() if config.get(key) != value]
+    return f"{system}'s test run must use its own settings, and these differ: {', '.join(different)}." if different else None
+
+
+def frozen_changes(root=ROOT):
+    """What has changed since the agent was frozen, as git diff prints it. Empty means nothing has, which a test run needs, also
+    when a stopped run continues. If git can't tell, that counts as a change."""
+    done = subprocess.run(["git", "diff", FROZEN_TAG, "--", "labour_rag", "prompts", "sql", ":!labour_rag/evaluate.py"],
+                          cwd=root, capture_output=True, text=True)
+    return done.stdout if done.returncode == 0 else done.stderr or "git diff failed"
 
 
 def config_name(config):
@@ -359,6 +384,12 @@ def run(args):
         config["max_per_document"] = AGENT_LIMIT
     run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
     if args.split == "test":
+        refusal = test_run_refusal(args.system, config)
+        if refusal:
+            raise SystemExit(refusal)
+        if frozen_changes():
+            raise SystemExit(f"The code or prompts differ from the tag {FROZEN_TAG}, so this wouldn't be the frozen system: "
+                             f"see git diff {FROZEN_TAG} -- labour_rag prompts sql ':!labour_rag/evaluate.py'")
         run_name = claim_test_run(args.system, run_name)
     run_dir = RESULTS / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -407,8 +438,6 @@ def main():
     elif not args.split:
         parser.error("--split is required, unless you use --rescore")
     else:
-        if args.system == "agent" and args.split == "test":
-            parser.error("the agent's one test run belongs to Phase 4: ask the project owner first")
         if args.system == "agent" and (args.retrieval_only or args.enhancer):
             parser.error("the agent always writes an answer and calls the enhancer itself")
         if args.enhancer and not args.retrieval_only:

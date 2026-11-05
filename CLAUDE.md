@@ -36,13 +36,15 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/agent-report.md](docs/agent-report.md))
 - 3C.1: two fixes: stop once an approved chunk answers directly, and let round 2 read further down the plain list; then freeze the agent (**done**,
   [docs/agent-report.md](docs/agent-report.md); every rule in plain words in [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md))
-- 4: compare one-shot vs agentic on the eval set (quality, time)
+- 4A: final test runs: one-shot v2 and the frozen agent, one run each, compared with the Phase 2 baseline (**done**,
+  [docs/final-report.md](docs/final-report.md))
+- 4B: Claude Haiku as Judge and Writer, with a budget guard in code
 - 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 4.
+Next: Phase 4B.
 
 - **After each phase, update the README status, layout and diagram.**
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
@@ -122,10 +124,10 @@ Next: Phase 4.
 - `.venv/bin/python -m labour_rag.evaluate --split dev [--fusion rrf] [--max-per-document 4] [--retrieval-only] [--embedding bge-m3|qwen3-4b-plain] [--number-rule digits] [--enhancer variants|with-question] [--reuse-enhancer <dir>]`
   writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
   `--rescore <dir>` checks and scores stored answers again without a model or database (chunk text comes from the chunks file).
-- Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). The one-shot baseline has used its
-  run (`2026-11-04_oneshot-limit2-test`, equal-weight RRF). `evaluate` refuses `--system agent --split test`: the agent's one run belongs to Phase 4, so
-  ask the owner first. Don't tune on the test split and don't read its answers: report which test items change by id only. A fresh test
-  needs new questions.
+- Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). All three have used theirs: the one-shot baseline
+  (`2026-11-04_oneshot-limit2-test`, equal-weight RRF), and `oneshot-v2` and `agent` (Phase 4A). `evaluate.TEST_SETTINGS` says who may use the split and with which settings; a finished run can't
+  start again. A new system needs the owner's go-ahead and its own entry. Don't tune on the test split and don't read its answers: report which test items change by id only. The one exception
+  so far is Phase 4A's blind read of every test answer scored complete. A fresh test needs new questions.
 - Refusals: `citations.is_refusal`, the prompt's "Δεν βρέθηκε" or other clear words near the start of the answer, unless the
   sentence goes on with "αλλά". It doesn't check that a refusal names where the rule would be.
 - Test set: `eval/questions.jsonl`. Expected answers follow our data, not today's law. After editing it, run
@@ -165,11 +167,18 @@ Next: Phase 4.
 - The code writes a refusal when the Judge refuses and says when a law isn't in our data (`law_in_data`). The writer can also refuse, as `prompts/answer.md` asks. A law the Judge names must be cited in the chunks (`named_laws`): matching digits aren't enough,
   because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
 - `docs/how-a-question-is-answered.md` states every rule in plain words and traces one question. It's written by hand, so a change to the agent means changing it too.
-- **The agent is frozen for Phase 4 at the local tag `agent-frozen-3c1`.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`. Before the agent's test run,
-  `git diff agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing. `evaluate.py` stays open because Phase 4 has to lift its refusal of `--system agent --split test`, and only with the owner's go-ahead. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test before then.
+- **The agent is frozen at the local tag `agent-frozen-3c1`, and that's what its test run measured.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`.
+  `git diff agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing for an `agent` test run, and `evaluate` checks that itself (`frozen_changes`). Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
 - Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
   started from Claude's session stops when the session does, unless started detached (`nohup caffeinate -ims …`), and continues if started again the same day. The 3C.1 run has its own name, `--name agent-3c1-qwen3-4b-semantic-units-limit4-dev`, so that it didn't continue the 3C run.
 - Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `FIXES`, `CHANGED`, `FIXES_NOTES`, `RESULT`, `ROUNDS`, `FAILURES`, `NEXT`, `LIMITS` and `WRONG_THOUGH_COMPLETE`, from reading the answers; the script stops if the claims it checks stop holding.
+
+## Final comparison (Phase 4A)
+
+- `.venv/bin/python -I scripts/final_report.py` rewrites `docs/final-report.md` from the six stored runs, with no model or database. Hand-written: `SHORT_VERSION`, `SYSTEMS_TEXT`, `TABLE_NOTES`, `SHOWS`, `LIMITS`, `HOW_RUN`, `NEXT`, and the verdicts
+  `WRONG_THOUGH_COMPLETE` (with `EVIDENCE`) and `NOTED`. It stops if a claim stops holding, or if the main table in README.md differs from its own.
+- The hand rule, the same for all systems: an answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included. Mistakes outside the key facts are noted, not counted. `scripts/agent_report.py` takes its verdicts from `final_report.py`.
+- Failures by step come from `evaluate.problem` (one-shots) and `evaluate.agent_problem`; an answer that fails when read goes through the same functions.
 
 ## Code
 

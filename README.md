@@ -6,6 +6,29 @@ A learning project that answers questions about Greek labour law from 1852-1999.
 it searches 1,284 laws, decrees and decisions, rewrites the question and searches again when the
 results are weak, and answers with citations. Everything runs locally with Ollama, with no paid APIs.
 
+## Results
+
+Three systems answered the same questions, all with the same local model writing the answer: the baseline from Phase 2, one-shot v2 (the same steps with better search) and the agent
+(search, judge, up to 3 rounds). The dev questions were used while building them. The test questions were kept aside, and each system ran on them once.
+
+| Measure | Dev: baseline | Dev: v2 | Dev: agent | Test: baseline | Test: v2 | Test: agent |
+|---|---:|---:|---:|---:|---:|---:|
+| **Complete answers, read by hand** | **6 of 26** | **9 of 26** | **13 of 26** | **5 of 16** | **5 of 16** | **4 of 16** |
+| Complete answers, by the matcher alone | 9 of 26 | 12 of 26 | 16 of 26 | 7 of 16 | 6 of 16 | 5 of 16 |
+| Key facts found | 51% | 68% | 78% | 60% | 69% | 66% |
+| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 2 of 4 | 1 of 4 | 3 of 4 |
+| Wrong refusals | 2 of 26 | 0 of 26 | 1 of 26 | 2 of 16 | 1 of 16 | 2 of 16 |
+| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 12 of 17 | 15 of 17 | 14 of 17 |
+| Time per question (median) | 36 s | 63 s | 141 s | 54 s | 49 s | 118 s |
+| Failures: search | 13 | 4 | 2 | 5 | 1 | 0 |
+| Failures: Judge | - | - | 1 | - | - | 3 |
+| Failures: Writer | 9 | 15 | 11 | 8 | 13 | 10 |
+| Failures: all | 22 | 19 | 14 | 13 | 14 | 13 |
+
+A complete answer has every key fact and none of them wrong. On dev the agent leads, but it was built on those questions. On test that lead is gone. Only 16 test questions can be answered, so
+one answer is about 6 points, and no gap on test is evidence either way. The agent refuses better on both sets and takes about 2.4 times as long as one-shot v2. On v2 and the agent, most failures
+are now the writer's. The full comparison, and what it can't show, is in [docs/final-report.md](docs/final-report.md).
+
 ## Status
 
 - [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
@@ -15,9 +38,10 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
 - [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
 - [x] Phase 3B: The Query Enhancer: one model call that rewrites a question into searches in the words of the law. Results are in [docs/enhancer-report.md](docs/enhancer-report.md): it adds no right chunks, 22 of 27 dev questions with or without it, and takes about 7 seconds. This step also made qwen3-embedding:4b the default and stopped the repeat filter from hiding newer rules.
-- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 15 of 26 answers are complete against 12 for one-shot, at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
+- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 13 of 26 answers are complete against 9 for one-shot (corrected in Phase 4A, reading both by one rule), at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
 - [x] Phase 3C.1: Two fixes: searching stops once an approved chunk answers directly, and round 2 reads further down the plain question's list. Results are in [docs/agent-report.md](docs/agent-report.md): one real rescue (`single-09`), wrong refusals down from 2 to 1, no new complete answer, and no faster. The agent is now frozen for Phase 4. [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md) gives every rule in plain words and traces one question.
-- [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
+- [x] Phase 4A: Final test runs: one-shot v2 and the frozen agent, one run each on the test questions, compared with the Phase 2 baseline. Results are in [docs/final-report.md](docs/final-report.md): the agent's lead on dev doesn't carry over, with 4 of 16 test answers complete against 5 and 5, and 16 questions can't settle it.
+- [ ] Phase 4B: Try Claude Haiku as judge and writer, with a budget guard in code.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
 Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
@@ -81,11 +105,11 @@ MEASURE IT
   count what came out right ....... built     Phase 2
         |
         v
-  compare one-shot and agentic .... planned   Phase 4
+  compare one-shot and agentic .... built     Phase 4A
 ```
 
 The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
-Phase 2 measured it on the test questions, and Phase 4 compares the two versions on the same questions.
+Phase 2 measured it on the test questions, and Phase 4A compared it with one-shot v2 and the agent on the same questions.
 
 ## Project layout
 
@@ -107,6 +131,7 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
 | `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
 | `docs/agent-report.md` | Phase 3C and 3C.1 results: the agent against one-shot, what the extra rounds did, what the two fixes changed, three traced examples and the most instructive failures. |
+| `docs/final-report.md` | Phase 4A results: the three systems on dev and test side by side, failures by step, every answer that failed when read, and how little 20 questions can show. |
 | `docs/how-a-question-is-answered.md` | How the final agent answers a question, for someone who doesn't read code: every rule, and one real question traced from start to finish. |
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
@@ -122,6 +147,7 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `scripts/retrieval_report.py` | Writes the retrieval report from the stored fusion runs. |
 | `scripts/enhancer_report.py` | Runs the enhancer measurements and writes the enhancer report. |
 | `scripts/agent_report.py` | Compares the stored agent and one-shot runs and writes the agent report. |
+| `scripts/final_report.py` | Compares the three systems from their stored runs, holds the hand-read verdicts, and writes the final report. |
 | `scripts/check_enhancer_prompt.py` | Checks that the examples in the enhancer's prompt are on topics that aren't in the test set. |
 | `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
@@ -265,6 +291,7 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone, `--fusion rrf` for another way of combining the lists) |
 | Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
 | Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
+| Rewrite the final report from the stored runs | `.venv/bin/python -I scripts/final_report.py` |
 | See what the Query Enhancer makes of a question | `.venv/bin/python -m labour_rag.enhancer "your question" --search` |
 | Measure the enhancer and rewrite its report | `.venv/bin/python -I scripts/enhancer_report.py --run` |
 | Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
@@ -322,6 +349,9 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
   prefer the newest. See [docs/enhancer-report.md](docs/enhancer-report.md).
 - **The Query Enhancer's katharevousa is often not real Greek,** and it can't find a word of the law it doesn't
   know. Only the agent's second try uses it.
-- **The agent is slow, and the judge can be wrong.** A question takes about 3 minutes, most of it the judge. It can
+- **The agent is slow, and the judge can be wrong.** A question takes about 2 minutes, most of it the judge. It can
   reject the right chunk or call a wrong one relevant, and that can end the search. The writer can still misread a
   chunk it was given, or add something no chunk says. See [docs/agent-report.md](docs/agent-report.md).
+- **Few test questions, and a complete answer isn't always a safe one.** Only 16 test questions can be answered, so the
+  numbers above can't separate the systems. And 12 of the 14 test answers that pass a hand read still say something else
+  their source doesn't support. See [docs/final-report.md](docs/final-report.md).

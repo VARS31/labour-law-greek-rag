@@ -11,13 +11,14 @@ Phase 0   Explore the data ............................. done
 Phase 1A  Clean + chunk ................................ done
 Phase 1B  Database (Docker) + embeddings + search ...... done
 Phase 1C  One-shot answers (baseline) .................. done   0 of 8 fully correct
-Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete
+Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete (5 when read)
 Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
 Phase 3B  Query Enhancer (retrieval only) .............. done   dev: no gain, 22 of 27 with or without it
-Phase 3C  Agent loop with LangGraph .................... done   dev: 15 of 26 complete vs 12, 167 s vs 63 s
-Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real rescue, wrong refusals 2 → 1, still 15 of 26
+Phase 3C  Agent loop with LangGraph .................... done   dev: 13 of 26 complete vs 9 (corrected in 4A), 167 s vs 63 s
+Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real rescue, wrong refusals 2 → 1, still 13 of 26
 Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
-Phase 4   Comparisons (one-shot vs agent, models, maybe Claude Haiku)
+Phase 4A  Final test runs, three systems side by side .. done   test: agent 4 of 16 complete vs 5 and 5, too few to separate them
+Phase 4B  Claude Haiku as Judge and Writer, budget guard in code
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
 
@@ -323,6 +324,43 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 - Check a timing claim before believing it. Two refusals took twice as long, so I was told the machine was slower. The 23 questions with exactly the same work took 53 and 51 minutes: the speed only moved around within each run. Tokens are the fair measure.
 - Write the rules down and check them against the code. A line-by-line check of the walkthrough found 3 false statements, and a fresh read with only the code found 13 more mistakes: 6 false, 7 too strong. They all sounded right.
 - A fix that works on the question it was aimed at can act on the Judge's mistakes elsewhere. Read all the places it fired, not only the one it was for.
+
+---
+
+## Phase 4A: final test runs
+
+**Goal:** run the two systems that still had a test run, set all three side by side on dev and test, and say honestly how little 20 questions can show.
+
+**What we did:** test guard lifted for exactly `oneshot-v2` and `agent`, with their settings pinned and the freeze check in code → both run detached on 2026-11-05, one after the other → every test answer scored complete read blind by two readers → every dev answer scored complete re-read by one rule → [final-report.md](final-report.md) → Results section in the README.
+
+**Key numbers:**
+
+| Measure | Dev: baseline | Dev: v2 | Dev: agent | Test: baseline | Test: v2 | Test: agent |
+|---|---:|---:|---:|---:|---:|---:|
+| Complete, read by hand | 6 of 26 | 9 of 26 | 13 of 26 | 5 of 16 | 5 of 16 | 4 of 16 |
+| Key facts | 51% | 68% | 78% | 60% | 69% | 66% |
+| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 2 of 4 | 1 of 4 | 3 of 4 |
+| Wrong refusals | 2 | 0 | 1 | 2 | 1 | 2 |
+| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 12 of 17 | 15 of 17 | 14 of 17 |
+| Median time | 36 s | 63 s | 141 s | 54 s | 49 s | 118 s |
+| Failures: search / Judge / Writer | 13 / - / 9 | 4 / - / 15 | 2 / 1 / 11 | 5 / - / 8 | 1 / - / 13 | 0 / 3 / 10 |
+
+**Findings**
+- **The agent's lead on dev didn't carry over.** 13 against 9 and 6 on dev, 4 against 5 and 5 on test. A gap of one answer shows neither that it's better nor that it's worse. It shows the dev lead can't be taken at face value: its rules were built on those answers.
+- **Refusing is where the agent leads on both sets.** 3 of 4 on test against 1 and 2. Its two wrong refusals on test are the Judge's, with the right chunk in places 1 and 2.
+- **Better search alone didn't give better answers.** The right chunk reaches the Writer for 15 of 17 on v2 against 12 on the baseline, and complete answers stay at 5.
+- **The Writer is now the weak step.** 10 of the agent's 13 failures on test, and 13 of v2's 14 (3 of those are questions it should have refused, with no Judge to catch them). Some may be the matcher's misses: test answers scored incomplete weren't read.
+- **Complete doesn't mean right in every sentence.** 12 of the 14 test answers that pass say something else their source doesn't support. Only key facts count, so these stay as passes, but anyone relying on an answer should check the source.
+- **The order on test depends on close calls.** One verdict either way gives 6, 5, 4, and stricter readings of three others give 3, 4, 4.
+- **Correction:** Phase 3C said 15 complete answers against 12 on dev. Reading both systems by one rule gives 13 against 9. The 3C and 3C.1 blocks above keep the old number as written, and [agent-report.md](agent-report.md) is corrected.
+
+**Decisions:** the Phase 2 baseline keeps its Phase 2 run. An answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included, for all systems; other mistakes are noted, not counted. The second reader's verdict on the baseline's `single-08` stands, and the report says it came after the labels were open. The agent stays frozen at `agent-frozen-3c1`.
+
+**Lessons**
+- A lead on the questions you built with isn't evidence. Keep a test set back, and expect it to disappoint.
+- Read every system by the same rule. Checking only the new one made my first number wrong.
+- A blind second reader is cheap. It agreed on 17 of 18, and the one difference was a mistake of mine: I compared the answer with the chunk and not with the words of the key fact.
+- Size the test set before comparing systems. With 16 answerable questions, one close call can reorder the table.
 
 ---
 

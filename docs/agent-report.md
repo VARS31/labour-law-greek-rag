@@ -12,13 +12,13 @@ After Phase 3C, two fixes went in. **(a)** Searching stops once the Judge has ap
 |---|---:|---:|
 | Key facts found | 76% | 78% |
 | Answers with every key fact, by matching | 16 of 26 | 16 of 26 |
-| Answers with every key fact, checked by hand | 15 of 26 | 15 of 26 |
+| Answers with every key fact, checked by hand | 13 of 26 | 13 of 26 |
 | Correct refusals | 5 of 6 | 5 of 6 |
 | Wrong refusals | 2 of 26 | 1 of 26 |
 | The right chunk reached the Judge | 23 of 27 | 24 of 27 |
 | The writer saw the right chunk | 22 of 27 | 24 of 27 |
 | Citation check passed | 15 of 26 | 13 of 26 |
-| Failures: search, Judge, writer | 3, 2, 7 | 2, 1, 9 |
+| Failures: search, Judge, writer | 3, 2, 9 | 2, 1, 11 |
 | Questions that took 1 / 2 / 3 rounds | 23 / 5 / 4 | 26 / 4 / 2 |
 | Rounds of the Judge | 45 | 40 |
 | Chunks the Judge read | 384 | 350 |
@@ -47,7 +47,7 @@ The rest of this report describes the Phase 3C run as it was measured, before th
 
 ## The result of Phase 3C
 
-**The agent gives better answers, and the Judge's filter does that, not the extra rounds.** Checked by hand, the agent gave a complete answer to 15 of 26 answerable dev questions, against 12 for the one-shot. Key facts rise from 68% to 76%. It refused 5 of the 6 questions it should refuse, against 4, but it also wrongly refused 2 it could have answered, against 0. It is much slower: a median of 167 s per question against 63 s.
+**The agent gives better answers, and the Judge's filter does that, not the extra rounds.** Checked by hand, the agent gave a complete answer to 13 of 26 answerable dev questions, against 9 for the one-shot. Key facts rise from 68% to 76%. It refused 5 of the 6 questions it should refuse, against 4, but it also wrongly refused 2 it could have answered, against 0. It is much slower: a median of 167 s per question against 63 s.
 
 **Round 2 rescued no answer on these questions.** The right chunk reached the Judge in round 1 for 23 of 27 questions, and never for the other 4. 9 questions used more than one round: 1 got better, 2 got worse and 6 changed nothing. Those extra rounds took 22 of the 91 minutes. So the example of a rescue that the brief asks for doesn't exist here, and the report says so below.
 
@@ -61,7 +61,7 @@ The rest of this report describes the Phase 3C run as it was measured, before th
 |---|---:|---:|
 | Key facts found | 68% | 76% |
 | Answers with every key fact, by matching | 12 of 26 | 16 of 26 |
-| Answers with every key fact, checked by hand | **12 of 26** | **15 of 26** |
+| Answers with every key fact, checked by hand | **9 of 26** | **13 of 26** |
 | Correct refusals | 4 of 6 | 5 of 6 |
 | Wrong refusals | 0 of 26 | 2 of 26 |
 | The writer saw the right chunk (recall) | 22 of 27 | 22 of 27 |
@@ -69,15 +69,15 @@ The rest of this report describes the Phase 3C run as it was measured, before th
 | Rounds used | 1 | 23 questions took 1, 5 took 2, 4 took 3 |
 | Median time per question | 63 s | 167 s |
 
-**Why two rows for complete answers.** Key facts are matched without a model, and that can't read meaning. So I read every answer scored as complete on either system. One is wrong: `sector-01` on the agent. I kept `lookup-01` on the one-shot as complete: its facts are there, though its quote comes from another article. For comparison, the one-shot of Phase 2 (bge-m3 and RRF) had 9 of 26.
+**Why two rows for complete answers.** Key facts are matched without a model, and that can't read meaning. So I read every answer scored as complete on either system, and in Phase 4A I read them again by one rule: an answer fails if it states a key fact wrong anywhere, short answer included. Three fail on each system. On the agent: `sector-01` (5 days instead of 30), `sector-02` (it says no permit is needed, and the chunk requires one) and `single-10` (the six months start from the wrong date). On the one-shot: `single-17` (its short answer turns the exception around), `single-27` (it puts the Dormition on 21 August) and `lookup-01` ("subject to article 3" isn't there: the matcher took a list number for it). **This report said 15 against 12 until then:** my first reading found only `sector-01`, which was too generous. By the same rule the one-shot of Phase 2 (bge-m3 and RRF) has 6 of 26.
 
 **Where the two differ.** The writer saw the right chunk for 22 questions on both, but not the same ones. The agent gains `sector-05`, because limit 4 lets the chunk through. It loses `vocab-03`, because the Judge rejected it. Key facts are up on `single-10`, `single-11`, `single-18`, `sector-01`, `sector-05`, `vocab-01`, `vocab-02`, `lookup-03`; down on `single-01`, `vocab-03`, `lookup-01`.
 
-**Failures, by who caused them.** The agent: search 3, Judge 2, writer 7 (the code gives 6, and `sector-01` adds one). The one-shot, which has no Judge: search 3, reading 13.
+**Failures, by who caused them.** The agent: search 3, Judge 2, writer 9 (the code gives 6, and the three wrong answers above add the rest). The one-shot, which has no Judge: search 3, reading 13, plus its three wrong answers.
 
 **Where the time goes.** All 32 questions took the agent 91 minutes of measured time and the one-shot 33. The Judge takes 67 of those 91, the writer 22, the Query Enhancer 2, and search less than one. A round of the Judge takes a median of 91 s.
 
-**Per category.** Each cell shows one-shot → agent. Every fact is by matching, so the sector traps count `sector-01` as complete. Most categories have only 2 to 5 questions.
+**Per category.** Each cell shows one-shot → agent. Every fact is by matching, so it counts the wrong answers above as complete. Most categories have only 2 to 5 questions.
 
 | Category | Questions | Key facts | Every fact | Correct refusals | Wrong refusals | Saw the right chunk | Rounds (1/2/3) | Median time |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -391,7 +391,7 @@ Phase 3C listed four things to try. Phase 3C.1 did the first two, and the agent 
 
 1. **Done: stop when a right chunk is in hand.** It saves a round when the Judge is right, on `single-27`. It keeps the right chunk in front of the writer on `vocab-03`, but the answer is no better.
 2. **Done: let round 2 read further down the plain question's list.** It got the one rescue, `single-09`. `vocab-01` stops before reaching it, and its right chunk is too far down in any case.
-3. **A stronger writer.** 9 of the 12 failures in 3C.1 are the writer's, with the right chunk in front of it. Phase 4 can test that.
+3. **A stronger writer.** 11 of the 14 failures in 3C.1 are the writer's, with the right chunk in front of it. Phase 4 can test that.
 4. **A faster, more careful Judge.** It takes 73% of the agent's time, mostly writing one verdict for each chunk. Now that its "relevant" can end the search, its mistakes also cost more.
 
 ## What this doesn't show
@@ -400,4 +400,4 @@ Phase 3C listed four things to try. Phase 3C.1 did the first two, and the agent 
 - **One run of a model that reacts to small changes.** The Judge runs at temperature 0, but a small change in the chunks can change its verdicts, as `vocab-03` shows.
 - **The time depends on the machine.** The one-shot's median here is 63 s, and it was 36 s in Phase 2 on a quieter machine. The Mac also slept during part of the agent run, which the per-question times leave out. Compare the two systems roughly, not to the second.
 - **A refusal's pointer can mislead.** On `refuse-06` the refusal says the chunks point to Ν.Δ. 3868/1958, a law on family allowances named in an earlier round, although the question is about custody. All 11 claims that a law isn't in our data were checked and are true, but true doesn't always mean relevant.
-- **The scores can't read meaning.** Besides `sector-01`, `single-01` is right on the main point and scores only 1 of 3 facts. I read the answers scored as complete, not all the others.
+- **The scores can't read meaning.** Besides the wrong answers named above, `single-01` is right on the main point and scores only 1 of 3 facts. I read the answers scored as complete, not all the others.

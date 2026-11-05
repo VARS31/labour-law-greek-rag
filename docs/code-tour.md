@@ -522,6 +522,24 @@ To follow one question through all of it, read [How a question is answered](how-
 
 **Tests:** `tests/test_agent.py` gained `TheTwoFixes`: the stop rule needs a chunk that is approved, relevant and applies, and leaves a refusal alone; round 2 reads the next places and skips repeats; round 3 doesn't read further.
 
+## Phase 4A: the final test runs
+
+No step of answering changed. This phase measures: one run each on the test questions for one-shot v2 and the frozen agent, then a report that sets them next to the Phase 2 baseline. The results are in [the final report](final-report.md).
+
+### What changed in the code
+
+- **`labour_rag/evaluate.py`** used to refuse the agent on the test questions. Now it lets exactly two systems through, once each.
+  - `test_run_refusal`: a system and its settings → why it can't use the test questions, or nothing if it can. Each system's settings are written down in `TEST_SETTINGS`, so a run can't quietly use other ones.
+  - `frozen_changes`: → what `git diff` shows against the tag `agent-frozen-3c1`. If it shows anything, the agent's run stops before it starts, also when it continues after an interruption.
+
+### The scripts
+
+- **`scripts/final_report.py`** sets the three systems side by side.
+  the six stored runs + my hand-read verdicts → `docs/final-report.md`. It holds the reason for each answer that failed when read and the words in the answer that verdict rests on. It stops if a claim no longer matches the runs, or if the main table in the README differs from its own.
+- **`scripts/agent_report.py`** now takes its verdicts from there. Its text is corrected: reading both systems by one rule made 15 against 12 into 13 against 9.
+
+**Tests:** `tests/test_evaluate.py` gained `WhoMayUseTheTestSplit` (only those two systems, only with their own settings) and `FrozenCode` (a change to frozen code is seen, a change to `evaluate.py` isn't). `tests/test_final_report.py` checks how failures are shared out between search, Judge and Writer, including answers that fail only when read.
+
 ## Running the tests
 
 ```bash
@@ -529,7 +547,7 @@ To follow one question through all of it, read [How a question is answered](how-
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 211 of them, almost all with real strings from the data, and they run in a few seconds. If a later
+are 226 of them, almost all with real strings from the data, and they run in a few seconds. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

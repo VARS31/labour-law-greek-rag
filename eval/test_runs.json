@@ -2,5 +2,13 @@
  "one-shot": {
   "run": "2026-11-04_oneshot-limit2-test",
   "started": "2026-11-04"
+ },
+ "oneshot-v2": {
+  "run": "2026-11-05_oneshot-qwen3-4b-semantic-units-limit2-test",
+  "started": "2026-11-05"
+ },
+ "agent": {
+  "run": "2026-11-05_agent-3c1-qwen3-4b-semantic-units-limit4-test",
+  "started": "2026-11-05"
  }
 }
