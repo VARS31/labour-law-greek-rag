@@ -9,6 +9,9 @@ parts:
   to a local model, citing the chunks it used and checking those citations.
 - **Phase 2** measures all of that on a fixed set of questions with written-down answers.
 
+Phases 3A to 3C.1 follow, and they end with the agent as it is now. To see what the agent does with one question, step by step, read
+[How a question is answered](how-a-question-is-answered.md).
+
 A few words used below:
 
 - **Module**: one Python file. The shared modules live in the folder `labour_rag/`.
@@ -497,6 +500,28 @@ is picked).
 
 **Tests:** `tests/test_agent.py` replaces the database and the models with stand-ins, so it can test the routing on its own: when the agent writes, refuses or searches again, what the writer sees, and that LangSmith stays off.
 
+## Phase 3C.1: two fixes and a freeze
+
+The diagram above still holds. Two rules changed, both in what happens after the Judge has spoken. This is the final version of the agent, frozen for Phase 4.
+
+To follow one question through all of it, read [How a question is answered](how-a-question-is-answered.md). It says exactly what each step receives and returns, gives every decision rule, and traces one real question with its chunks, verdicts and times. This page says which file does what. That page says what happens.
+
+### What changed in the code
+
+- **`labour_rag/judge.py`** gained `answers_directly`.
+  the approved chunks + the Judge's verdicts → yes or no: does an approved chunk answer the question and apply to this person?
+- **`labour_rag/agent.py`** uses it. If the Judge asks to search again and the answer is yes, the agent writes instead, and the record keeps both what the Judge said and that the code stopped it (`stopped_by_code`). It doesn't overrule a refusal.
+- **`labour_rag/agent.py`** also reads further in round 2.
+  round 1's ranked list → the next 8 places the Judge hasn't seen, without the repeats round 1 removed. They come before the Query Enhancer's phrasings, and the record names each one by its rank.
+- **`labour_rag/evaluate.py`** counts how often the stop rule fired.
+
+### The scripts
+
+- **`scripts/agent_report.py`** gained a section that compares the Phase 3C run with this one.
+  the two stored runs → how each number moved, and a hand-written verdict on each answer that changed. It stops if a hand-written claim no longer matches the runs.
+
+**Tests:** `tests/test_agent.py` gained `TheTwoFixes`: the stop rule needs a chunk that is approved, relevant and applies, and leaves a refusal alone; round 2 reads the next places and skips repeats; round 3 doesn't read further.
+
 ## Running the tests
 
 ```bash
@@ -504,7 +529,7 @@ is picked).
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 204 of them, almost all with real strings from the data, and they run in a few seconds. If a later
+are 211 of them, almost all with real strings from the data, and they run in a few seconds. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

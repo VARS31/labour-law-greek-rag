@@ -163,6 +163,7 @@ def summarise_group(records):
         out.update({"rounds_mean": _mean(len(r["rounds"]) for r in agent_records),
                     "rounds_used": {str(n): sum(len(r["rounds"]) == n for r in agent_records) for n in (1, 2, 3)},
                     "refused_by_judge": sum(r["refused_by_judge"] for r in agent_records),
+                    "stopped_by_code": sum(any(x.get("stopped_by_code") for x in r["rounds"]) for r in agent_records),
                     "gold_judged": _share(r["retrieval"]["gold_judged"] for r in agent_records if r["retrieval"]),
                     "agent_problems": {kind: sum(agent_problem(r) == kind for r in agent_records) for kind in ("search", "judge", "writer")}})
     return out

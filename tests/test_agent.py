@@ -53,7 +53,7 @@ class FakeClient:
         return next(c for c in self.calls if not c["format"])["messages"][1]["content"]
 
 
-class Graph(unittest.TestCase):
+class GraphCase(unittest.TestCase):
     """Rounds 1 to 3 find chunks 1-2, 3-4 and 5-6 unless a test says otherwise."""
 
     def run_agent(self, *answers, law_found=True, keyword=(), near=()):
@@ -72,6 +72,8 @@ class Graph(unittest.TestCase):
             result = agent.run(None, client, "Η ερώτηση του ανθρώπου;")
         return result, client
 
+
+class Graph(GraphCase):
     def test_an_answer_in_the_first_round(self):
         result, client = self.run_agent(judged([verdict(1), verdict(2, "not_relevant")]))
         self.assertEqual(len(result["rounds"]), 1)
@@ -81,7 +83,7 @@ class Graph(unittest.TestCase):
         self.assertEqual(self.queries, [["Η ερώτηση του ανθρώπου;"]])
 
     def test_the_writer_sees_only_approved_chunks_and_the_persons_own_question(self):
-        _, client = self.run_agent(judged([verdict(1, "not_relevant"), verdict(2)], "search_again", "λείπει"), judged([verdict(1), verdict(2, "partly"), verdict(3, "not_relevant")]))     # renumbered each round: [1] is chunk 2
+        _, client = self.run_agent(judged([verdict(1, "not_relevant"), verdict(2, "partly")], "search_again", "λείπει"), judged([verdict(1), verdict(2, "partly"), verdict(3, "not_relevant")]))     # renumbered each round: [1] is chunk 2
         message = client.writer_message()
         self.assertIn("Η ερώτηση του ανθρώπου;", message)
         self.assertNotIn("ΔΕΝ ΠΡΕΠΕΙ", message)
@@ -90,13 +92,13 @@ class Graph(unittest.TestCase):
         self.assertNotIn("Υ.Α. 4/1980", message)
 
     def test_round_two_searches_the_variants_and_never_shows_a_rejected_chunk_again(self):
-        result, client = self.run_agent(judged([verdict(1, "not_relevant"), verdict(2)], "search_again", "λείπει"), judged([verdict(1), verdict(2), verdict(3)]))
+        result, client = self.run_agent(judged([verdict(1, "not_relevant"), verdict(2, "partly")], "search_again", "λείπει"), judged([verdict(1), verdict(2), verdict(3)]))
         self.assertEqual(self.queries[1], ["φράση α", "φράση β"])
         shown = [c["id"] for c in result["rounds"][1]["chunks"]]
         self.assertNotIn("glc-00001-000", shown)
         self.assertIn("glc-00002-000", shown)        # approved: stays in front of the Judge
         self.assertIn("glc-00003-000", shown)
-        self.assertEqual(result["rounds"][1]["searched"][:2], ["variant: φράση α", "variant: φράση β"])
+        self.assertIn("variant: φράση α", result["rounds"][1]["searched"])
 
     def test_the_judge_is_asked_at_temperature_zero(self):
         _, client = self.run_agent(judged([verdict(1), verdict(2)]))
@@ -152,7 +154,7 @@ class Graph(unittest.TestCase):
             calls.append(query)
             return [extra]
 
-        client = FakeClient([judged([verdict(1)], "search_again", "λείπει", ["Νόμ. 2112/1920"]), judged([verdict(1), verdict(2)], "search_again", "λείπει", ["Νόμ. 2112/1920"]),
+        client = FakeClient([judged([verdict(1, "partly")], "search_again", "λείπει", ["Νόμ. 2112/1920"]), judged([verdict(1, "partly"), verdict(2, "partly")], "search_again", "λείπει", ["Νόμ. 2112/1920"]),
                              judged([verdict(1), verdict(2)])])
         lists = [[named], [chunk(2)], [chunk(3)]]
         with (mock.patch.object(search, "multi_query", lambda *a, **k: (lists.pop(0), {"semantic": [], "keyword": []})), mock.patch.object(search, "keyword", keyword),
@@ -163,13 +165,13 @@ class Graph(unittest.TestCase):
 
     def test_neighbours_of_approved_chunks_are_shown_even_over_the_limit(self):
         near = [{**chunk(1, doc=1), "id": f"glc-00001-00{i}", "n": 0} for i in (1, 2, 3)]
-        result, _ = self.run_agent(judged([verdict(1), verdict(2, "not_relevant")], "search_again", "λείπει"), judged([verdict(1)]), near=near)
+        result, _ = self.run_agent(judged([verdict(1, "partly"), verdict(2, "not_relevant")], "search_again", "λείπει"), judged([verdict(1)]), near=near)
         round_two = result["rounds"][1]["chunks"]
         neighbours = [c for c in round_two if c["source"].startswith("next to")]
         self.assertEqual([c["id"] for c in neighbours], ["glc-00001-001", "glc-00001-002"])
 
     def test_every_round_is_recorded(self):
-        result, _ = self.run_agent(judged([verdict(1), verdict(2)], "search_again", "λείπει"), judged([verdict(1), verdict(2), verdict(3)]))
+        result, _ = self.run_agent(judged([verdict(1, "partly"), verdict(2, "partly")], "search_again", "λείπει"), judged([verdict(1), verdict(2), verdict(3)]))
         record = result["rounds"][0]
         self.assertEqual(record["decision"], "search_again")
         self.assertEqual(record["missing"], "λείπει")
@@ -181,6 +183,79 @@ class Graph(unittest.TestCase):
         self.assertNotIn("text", record["chunks"][0])
 
 
+class TheTwoFixes(GraphCase):
+    """Phase 3C.1: stop when a right chunk is in hand, and read further down the plain list in round 2."""
+
+    LONG = 20       # how many chunks the plain question's list has in these tests
+
+    def run_long(self, *answers, removed=()):
+        client = FakeClient(answers)
+        lists = [[chunk(i % 14 + 1, doc=i, text=f"λέξη{'αβγδεζηθικλμνξοπρστυφχψω'[i]}ο άλλη{'αβγδεζηθικλμνξοπρστυφχψω'[i]}ο") for i in range(self.LONG)],
+                 [chunk(14, doc=100, citation="Από φράση")], [chunk(14, doc=101, citation="Από έλλειψη")]]
+        for n, c in enumerate(lists[0], 1):
+            c["rank"] = n
+
+        def multi_query(conn, client, queries, keyword_query="", k=10, embedding=None):
+            found = lists.pop(0)
+            return found, {"semantic": found, "keyword": []}
+
+        real_select = agent.select
+
+        def select_with_removed(results, k, limit):
+            kept, gone = real_select(results, k, limit)
+            return kept, gone + [{**r, "reason": "near-duplicate", "of": None} for r in results if r["id"] in removed]
+
+        with (mock.patch.object(search, "multi_query", multi_query), mock.patch.object(search, "keyword", lambda *a: []), mock.patch.object(search, "neighbours", lambda *a: []),
+              mock.patch.object(enhancer, "enhance", lambda *a: ENHANCED), mock.patch.object(agent, "law_in_data", lambda c, l: True), mock.patch.object(agent, "select", select_with_removed)):
+            return agent.run(None, client, "Η ερώτηση;"), client
+
+    def test_stops_when_an_approved_chunk_answers_directly(self):
+        result, client = self.run_agent(judged([verdict(1), verdict(2, "not_relevant")], "search_again", "θέλω κι άλλα"))
+        self.assertEqual(len(result["rounds"]), 1)
+        self.assertEqual(result["rounds"][0]["decision"], "search_again")     # what the Judge said stays on record
+        self.assertTrue(result["rounds"][0]["stopped_by_code"])
+        self.assertFalse(result["refused_by_judge"])
+        self.assertEqual([c["id"] for c in result["chunks"]], ["glc-00001-000"])
+
+    def test_a_partly_relevant_or_unclear_chunk_doesnt_stop_the_search(self):
+        for first in (verdict(1, "partly"), verdict(1, "relevant", "unclear")):
+            result, _ = self.run_agent(judged([first, verdict(2, "not_relevant")], "search_again", "λείπει"), judged([verdict(1), verdict(2), verdict(3)]))
+            self.assertEqual(len(result["rounds"]), 2, first)
+            self.assertFalse(result["rounds"][0]["stopped_by_code"])
+
+    def test_a_chunk_replaced_by_a_newer_act_doesnt_stop_the_search(self):
+        client = FakeClient([judged([verdict(1, replaced_by=2), verdict(2, "partly")], "search_again", "λείπει"), judged([verdict(1)])])
+        lists = [[chunk(1, 1950), chunk(2, 1990)], [chunk(3)]]
+        with (mock.patch.object(search, "multi_query", lambda *a, **k: (lists.pop(0), {"semantic": [], "keyword": []})), mock.patch.object(search, "keyword", lambda *a: []),
+              mock.patch.object(search, "neighbours", lambda *a: []), mock.patch.object(enhancer, "enhance", lambda *a: ENHANCED)):
+            self.assertEqual(len(agent.run(None, client, "Ε;")["rounds"]), 2)
+
+    def test_it_doesnt_overrule_a_refusal(self):
+        result, _ = self.run_agent(judged([verdict(1), verdict(2)], "refuse", "εκτός θέματος"))
+        self.assertTrue(result["refused_by_judge"])
+
+    def test_round_two_reads_the_next_places_of_the_plain_list(self):
+        nothing = [verdict(n, "not_relevant") for n in range(1, 21)]
+        result, _ = self.run_long(judged(nothing[:8], "search_again", "λείπει"), judged(nothing[:12], "search_again", "λείπει"), judged(nothing[:8], "refuse", "τίποτα"))
+        round_two = result["rounds"][1]
+        self.assertEqual(round_two["searched"][0], "the question, further down its list: ranks 9 to 16")
+        self.assertEqual([c["source"] for c in round_two["chunks"]][:8], [f"question, rank {n}" for n in range(9, 17)])
+        self.assertEqual(round_two["chunks"][8]["source"], "variants")
+        self.assertLessEqual(len(round_two["chunks"]), agent.ROUND_2_CHUNKS)
+
+    def test_round_three_doesnt_read_the_plain_list_any_further(self):
+        nothing = [verdict(n, "not_relevant") for n in range(1, 21)]
+        result, _ = self.run_long(judged(nothing[:8], "search_again", "λείπει"), judged(nothing[:12], "search_again", "λείπει"), judged(nothing[:8], "refuse", "τίποτα"))
+        self.assertFalse(any(c["source"].startswith("question") for c in result["rounds"][2]["chunks"]))
+        self.assertFalse(any(s.startswith("the question") for s in result["rounds"][2]["searched"]))
+
+    def test_chunks_removed_as_repeats_in_round_one_arent_read_again(self):
+        nothing = [verdict(n, "not_relevant") for n in range(1, 21)]
+        removed = {"glc-00010-000"}
+        result, _ = self.run_long(judged(nothing[:8], "search_again", "λείπει"), judged(nothing[:12], "refuse", "τίποτα"), removed=removed)
+        self.assertNotIn("glc-00010-000", [c["id"] for c in result["rounds"][1]["chunks"]])
+
+
 class Trace(unittest.TestCase):
     def test_the_trace_shows_every_step(self):
         record = {"round": 2, "seconds": {"judge": 44.5}, "searched": ["the question"], "laws_named": ["Ν. 435/1976"], "decision": "search_again", "missing": "λείπει", "approved": ["a"],
@@ -190,6 +265,8 @@ class Trace(unittest.TestCase):
         text = "\n".join(agent.trace_lines([record]))
         for part in ("ROUND 2", "judge 44.5 s", "the question", "[1] approved", "[2] rejected", "only for: ναυτικοί", "replaced by [1]", "άλλη ομάδα", "DECISION: search_again. Missing: λείπει", "LAWS NAMED: Ν. 435/1976"):
             self.assertIn(part, text)
+        self.assertNotIn("STOPPED", text)
+        self.assertIn("STOPPED BY THE CODE", "\n".join(agent.trace_lines([{**record, "stopped_by_code": True}])))
 
 
 class Judge(unittest.TestCase):

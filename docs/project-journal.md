@@ -15,6 +15,7 @@ Phase 2   Test set + measurements ...................... done   test: 7 of 16 an
 Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
 Phase 3B  Query Enhancer (retrieval only) .............. done   dev: no gain, 22 of 27 with or without it
 Phase 3C  Agent loop with LangGraph .................... done   dev: 15 of 26 complete vs 12, 167 s vs 63 s
+Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real rescue, wrong refusals 2 → 1, still 15 of 26
 Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
 Phase 4   Comparisons (one-shot vs agent, models, maybe Claude Haiku)
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
@@ -285,6 +286,43 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 - Read the answers. A score that can't read meaning hid a wrong answer in the headline number.
 - More rounds aren't more help by themselves. Each round is another chance to change a right decision.
 - Long runs need `caffeinate`, and a run started from a session dies with the session. Save each result as it finishes, so stopping costs nothing.
+
+---
+
+## Phase 3C.1: two fixes, then freeze
+
+**Goal:** make the two fixes Phase 3C pointed to, measure them once on dev, freeze the agent for Phase 4, and write down exactly how a question is answered.
+
+**What we did:** stop rule: if the Judge asks to search again but an approved chunk is relevant and applies, the code writes instead → round 2 also reads the next 8 places on the plain list → one dev re-run → read every answer that changed → comparison in [agent-report.md](agent-report.md) → agent frozen at the local tag `agent-frozen-3c1` → [how-a-question-is-answered.md](how-a-question-is-answered.md), with `single-09` traced end to end.
+
+**Key numbers (dev, 3C → 3C.1):**
+
+| Measure | 3C | 3C.1 |
+|---|---:|---:|
+| Key facts | 76% | 78% |
+| Complete, checked by hand | 15 of 26 | 15 of 26 |
+| Correct refusals | 5 of 6 | 5 of 6 |
+| Wrong refusals | 2 | 1 |
+| Writer saw the right chunk | 22 of 27 | 24 of 27 |
+| Citation check passed | 15 of 26 | 13 of 26 |
+| Questions with 1 / 2 / 3 rounds | 23 / 5 / 4 | 26 / 4 / 2 |
+| Judge tokens | 347,386 | 312,808 |
+| Measured time | 91 min | 94 min |
+
+**Findings**
+- **The first real rescue.** `single-09`: right chunk at rank 15, read in round 2, approved, and the stop rule ended the search. It had been a wrong refusal.
+- **It isn't a clean rescue.** The main rule is right, but the writer adds that a change without a document is void, citing chunks that don't say that. The citation check can't see it.
+- **No new complete answer, and no key fact lost.** 26 of 32 answers are word for word the same. One question of 27 shows the fix can work, not how often.
+- **The stop rule believes the Judge.** It fired 5 times, and only 2 were on a chunk that really answers. On `refuse-06` the Judge called an article on penalties relevant to child custody, and only the writer's own refusal saved it.
+- `vocab-03` didn't improve. The right chunk now stays with the writer, which answers from another one. The failure moved from the Judge to the writer.
+- **It isn't measurably faster.** 5 fewer rounds and 10% fewer Judge tokens, but round 2 now reads 4 more chunks each time.
+
+**Decisions:** numbers with a unit stays the repeat rule (my decision). Both fixes stay. The agent is frozen: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/` and the `CHAT_*` settings. Any later change is a new named system with its own run.
+
+**Lessons**
+- Check a timing claim before believing it. Two refusals took twice as long, so I was told the machine was slower. The 23 questions with exactly the same work took 53 and 51 minutes: the speed only moved around within each run. Tokens are the fair measure.
+- Write the rules down and check them against the code. A line-by-line check of the walkthrough found 3 false statements, and a fresh read with only the code found 13 more mistakes: 6 false, 7 too strong. They all sounded right.
+- A fix that works on the question it was aimed at can act on the Judge's mistakes elsewhere. Read all the places it fired, not only the one it was for.
 
 ---
 

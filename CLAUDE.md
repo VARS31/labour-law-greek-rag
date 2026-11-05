@@ -34,6 +34,8 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/enhancer-report.md](docs/enhancer-report.md))
 - 3C: agentic RAG with LangGraph: search → judge → search again, max 3 rounds → answer → citation check (**done**,
   [docs/agent-report.md](docs/agent-report.md))
+- 3C.1: two fixes: stop once an approved chunk answers directly, and let round 2 read further down the plain list; then freeze the agent (**done**,
+  [docs/agent-report.md](docs/agent-report.md); every rule in plain words in [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md))
 - 4: compare one-shot vs agentic on the eval set (quality, time)
 - 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
@@ -158,11 +160,16 @@ Next: Phase 4.
   off before importing LangGraph; keep that first.
 - `labour_rag/judge.py`: one `chat()` call at temperature 0 with a JSON schema; the last round's schema can't say `search_again`. Instructions in `prompts/judge.md`; the user edits it, and its
   example must stay off the test set (`tests/test_agent.py` checks). Approved means relevant or partly, doesn't fail to apply, and isn't replaced by a really newer approved act.
-- The code, not the model, writes refusals and says when a law isn't in our data (`law_in_data`). A law the Judge names must be cited in the chunks (`named_laws`): matching digits aren't enough,
+- Stop rule (`judge.answers_directly`): if the Judge says `search_again` but an approved chunk is relevant and applies "yes", the code writes instead. It doesn't overrule a refusal. The Judge's own decision stays on record, with `stopped_by_code`.
+- Round 2 reads the next 8 places on the plain question's list (`PLAIN_PLACES`), skipping chunks the Judge has seen and repeats round 1 removed; the enhancer's variants come after them. It may show 12 new chunks, round 3 only 8.
+- The code writes a refusal when the Judge refuses and says when a law isn't in our data (`law_in_data`). The writer can also refuse, as `prompts/answer.md` asks. A law the Judge names must be cited in the chunks (`named_laws`): matching digits aren't enough,
   because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
+- `docs/how-a-question-is-answered.md` states every rule in plain words and traces one question. It's written by hand, so a change to the agent means changing it too.
+- **The agent is frozen for Phase 4 at the local tag `agent-frozen-3c1`.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`. Before the agent's test run,
+  `git diff agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing. `evaluate.py` stays open because Phase 4 has to lift its refusal of `--system agent --split test`, and only with the owner's go-ahead. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test before then.
 - Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
-  started from Claude's session stops when the session does, and continues if started again the same day.
-- Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `RESULT`, `ROUNDS`, `FAILURES`, `NEXT`, `LIMITS` and `WRONG_THOUGH_COMPLETE`, from reading the answers; the script stops if the claims it checks stop holding.
+  started from Claude's session stops when the session does, unless started detached (`nohup caffeinate -ims …`), and continues if started again the same day. The 3C.1 run has its own name, `--name agent-3c1-qwen3-4b-semantic-units-limit4-dev`, so that it didn't continue the 3C run.
+- Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `FIXES`, `CHANGED`, `FIXES_NOTES`, `RESULT`, `ROUNDS`, `FAILURES`, `NEXT`, `LIMITS` and `WRONG_THOUGH_COMPLETE`, from reading the answers; the script stops if the claims it checks stop holding.
 
 ## Code
 

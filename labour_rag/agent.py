@@ -6,9 +6,11 @@
                  |---> refuse -> END
                  '---> search again -> judge (at most MAX_ROUNDS rounds in all)
 
-Round 1 searches the person's question. Round 2 searches the Query Enhancer's variants, the laws the Judge named and the articles
-next to approved chunks. Round 3 adds what the Judge said was missing. The writer sees only approved chunks and the person's own
-question. A refusal is written by the code, so it can't invent anything.
+Round 1 searches the person's question. Round 2 reads further down that question's list, and adds the Query Enhancer's variants, the
+laws the Judge named and the articles next to approved chunks. Round 3 replaces the further reading with what the Judge said was
+missing. Searching stops as soon as the Judge has approved a chunk that answers directly. The writer sees only approved chunks and
+the person's own question. When the Judge refuses, the code writes the refusal, so it can't invent anything; the writer may also
+say it found nothing, as its prompt asks. docs/how-a-question-is-answered.md gives every rule in plain words.
 """
 
 import argparse
@@ -37,7 +39,9 @@ from .retrieve import CONTEXT_CHUNKS, POOL, select  # noqa: E402
 MAX_ROUNDS = 3
 LIMIT = 4               # chunks per document in a search: more than one-shot's 2, because the Judge filters now
 RANKED = 100            # how far the ranked lists are kept, for the scores in evaluate.py
-NEW_CHUNKS = 8          # new chunks a search-again round may show the Judge
+NEW_CHUNKS = 8          # new chunks round 3 may show the Judge
+ROUND_2_CHUNKS = 12     # and round 2, which also reads further down the plain question's list
+PLAIN_PLACES = 8        # how far: the next places on that list that the Judge hasn't seen
 LAW_PLACES = 2          # of those, for keyword search of a law the Judge named
 NEIGHBOUR_PLACES = 2    # and for articles next to approved chunks
 WRITER_CHUNKS = 8
@@ -136,13 +140,15 @@ def build_graph(conn, client, embedding=DEFAULT_EMBEDDING):
         chunks = current["chunks"]
         result = judge.judge(client, state["question"], chunks, number, MAX_ROUNDS)
         allowed = judge.approved(chunks, result)
+        stopped = result["decision"] == "search_again" and judge.answers_directly(allowed, result)
         seconds = {**current["seconds"], "judge": time.perf_counter() - started}
         record = {"round": number, "searched": current["searched"], "chunks": [_summary(c) for c in chunks], "removed": current["removed"],
-                  "verdicts": [{"n": n, **v} for n, v in result["verdicts"].items()], "decision": result["decision"],
+                  "verdicts": [{"n": n, **v} for n, v in result["verdicts"].items()], "decision": result["decision"], "stopped_by_code": stopped,
                   "missing": result["missing"], "laws_named": result["laws"], "laws_dropped": result["dropped_laws"],
                   "skipped_chunks": result["skipped"], "judge_ok": result["ok"], "approved": [c["id"] for c in allowed],
                   "tokens": result["tokens"], "raw": result["raw"], "seconds": {k: round(v, 2) for k, v in seconds.items()}}
-        return {"verdict": result, "approved": allowed, "judged": state.get("judged", []) + [c["id"] for c in chunks], "rounds": [record],
+        return {"verdict": {**result, "decision": "answer" if stopped else result["decision"]}, "approved": allowed,
+                "judged": state.get("judged", []) + [c["id"] for c in chunks], "rounds": [record],
                 **sort_laws(conn, result["laws"], state)}
 
     def next_step(state):
@@ -190,9 +196,18 @@ def build_graph(conn, client, embedding=DEFAULT_EMBEDDING):
         if near:
             searched.append("articles next to approved chunks: " + ", ".join(n["id"] for n in near))
 
+        plain = []
+        if number == 2:                 # chunks round 1 removed as repeats stay out: they repeat what the Judge has seen
+            repeats = {r["id"] for r in state["first"]["removed"] if r["reason"] == "near-duplicate"}
+            plain = [{**c, "source": f"question, rank {c['rank']}"} for c in state["first"]["fused"] if c["id"] not in seen | repeats][:PLAIN_PLACES]
+        if plain:
+            searched.insert(0, f"the question, further down its list: ranks {plain[0]['rank']} to {plain[-1]['rank']}")
+
         near_ids = {n["id"] for n in near}
-        fresh = _labelled(by_law, "keyword") + [c for c in _labelled(ranked, "variants") if c["id"] not in seen and c["id"] not in near_ids]
-        room = len(allowed) + NEW_CHUNKS - len(near)
+        fresh = _labelled(by_law, "keyword") + [c for c in plain if c["id"] not in near_ids]
+        taken = {c["id"] for c in fresh} | near_ids
+        fresh += [c for c in _labelled(ranked, "variants") if c["id"] not in seen and c["id"] not in taken]
+        room = len(allowed) + (ROUND_2_CHUNKS if number == 2 else NEW_CHUNKS) - len(near)
         kept, removed = select(allowed + fresh[:POOL], room, LIMIT)
         chunks = [{**c, "n": i} for i, c in enumerate(kept + near, 1)]       # neighbours pass the limit: they're the same document on purpose
         seconds["search"] = time.perf_counter() - started - seconds.get("enhancer", 0)
@@ -275,6 +290,8 @@ def trace_lines(rounds):
             lines.append(f"  [{chunk['n']}] {mark:8}  {chunk['citation'][:44]}, {chunk['article'] or '-'}  ({chunk['source']})")
             lines.append(f"       {v['relevance']}, applies: {v['applies']}{only}{replaced}. {v['reason']}")
         lines.append(f"DECISION: {record['decision']}" + (f". Missing: {record['missing']}" if record["missing"] else ""))
+        if record.get("stopped_by_code"):
+            lines.append("STOPPED BY THE CODE: an approved chunk answers directly, so the agent writes instead of searching again")
         if record["laws_named"]:
             lines.append("LAWS NAMED: " + ", ".join(record["laws_named"]))
     return lines

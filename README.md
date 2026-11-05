@@ -16,6 +16,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
 - [x] Phase 3B: The Query Enhancer: one model call that rewrites a question into searches in the words of the law. Results are in [docs/enhancer-report.md](docs/enhancer-report.md): it adds no right chunks, 22 of 27 dev questions with or without it, and takes about 7 seconds. This step also made qwen3-embedding:4b the default and stopped the repeat filter from hiding newer rules.
 - [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 15 of 26 answers are complete against 12 for one-shot, at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
+- [x] Phase 3C.1: Two fixes: searching stops once an approved chunk answers directly, and round 2 reads further down the plain question's list. Results are in [docs/agent-report.md](docs/agent-report.md): one real rescue (`single-09`), wrong refusals down from 2 to 1, no new complete answer, and no faster. The agent is now frozen for Phase 4. [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md) gives every rule in plain words and traces one question.
 - [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
@@ -28,7 +29,8 @@ the agent (`labour_rag.agent`), which is the diagram below. The agent searches t
 rewriter only when the judge asks for another try, because Phase 3B showed the rewriter adds little as a first step. Since
 Phase 3A answers use semantic search alone by default, because mixing it with keyword search lost more than it
 found (`--fusion rrf` brings back the old way). Since Phase 3B search uses qwen3-embedding:4b (`--embedding bge-m3`
-brings back the old model).
+brings back the old model). To follow one question from start to finish, with every rule and a real example, read
+[docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md).
 
 ```
 BUILD THE INDEX (once)
@@ -57,9 +59,11 @@ ANSWER A QUESTION
   judge: which chunks fit,  ....... built     Phase 3C <------------+
   and what next?                                                    |
         |   search again, at most 3 rounds in all:                  |
+        |     further down the list (round 2 only),                 |
         |     rewriter, laws it named, next articles .. built  3B, 3C
         |   refuse: the code says so, and names the law if known
-        |   answer: go on
+        |   answer: go on, also if the judge wants more but
+        |     an approved chunk answers directly ...... built  3C.1
         v
   answer from approved chunks,
   with citations .................. built     Phase 1C, 3C
@@ -102,7 +106,8 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `docs/eval-report.md` | Phase 2 results: what the test set contains, the numbers per experiment and category, and the most instructive failures. |
 | `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
 | `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
-| `docs/agent-report.md` | Phase 3C results: the agent against one-shot, what the extra rounds did, three traced examples and the most instructive failures. |
+| `docs/agent-report.md` | Phase 3C and 3C.1 results: the agent against one-shot, what the extra rounds did, what the two fixes changed, three traced examples and the most instructive failures. |
+| `docs/how-a-question-is-answered.md` | How the final agent answers a question, for someone who doesn't read code: every rule, and one real question traced from start to finish. |
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
@@ -318,5 +323,5 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
 - **The Query Enhancer's katharevousa is often not real Greek,** and it can't find a word of the law it doesn't
   know. Only the agent's second try uses it.
 - **The agent is slow, and the judge can be wrong.** A question takes about 3 minutes, most of it the judge. It can
-  reject the right chunk, and the writer can still misread a chunk it was given. See
-  [docs/agent-report.md](docs/agent-report.md).
+  reject the right chunk or call a wrong one relevant, and that can end the search. The writer can still misread a
+  chunk it was given, or add something no chunk says. See [docs/agent-report.md](docs/agent-report.md).

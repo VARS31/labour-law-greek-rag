@@ -103,6 +103,12 @@ def judge(client, question, chunks, round_number, max_rounds):
     return {**parse_output(raw, chunks, final_round, question), "raw": raw, "tokens": dict(client.last_chat)}
 
 
+def answers_directly(allowed, result):
+    """True if an approved chunk answers the question and applies to this person: there's nothing left to search for."""
+    verdicts = result["verdicts"]
+    return any(verdicts[c["n"]]["relevance"] == "relevant" and verdicts[c["n"]]["applies"] == "yes" for c in allowed)
+
+
 def approved(chunks, result):
     """The chunks the writer may see, best first: relevant or partly, and not ruled out for this person. A chunk replaced by a
     newer act goes, if that act is approved too and really is newer: the model can't be trusted on years, the data can."""
