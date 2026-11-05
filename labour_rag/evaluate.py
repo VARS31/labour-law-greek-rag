@@ -4,10 +4,12 @@
     .venv/bin/python -m labour_rag.evaluate --split dev --max-per-document 4    # another chunk limit
     .venv/bin/python -m labour_rag.evaluate --split dev --retrieval-only        # search only, no model answer
     .venv/bin/python -m labour_rag.evaluate --split dev --retrieval-only --embedding qwen3-4b
+    .venv/bin/python -m labour_rag.evaluate --split dev --fusion rrf            # another way of combining the lists
     .venv/bin/python -m labour_rag.evaluate --rescore eval/results/<run>        # score stored answers again
 
 Each run writes eval/results/<date>_<config>/ with items.jsonl (one line per question, added as it finishes, so an
-interrupted run continues), summary.json and summary.md. The test split runs only once: a second run is refused.
+interrupted run continues), summary.json and summary.md. The test split runs once per named system, recorded in
+eval/test_runs.json.
 """
 
 import argparse
@@ -17,8 +19,8 @@ import statistics
 import time
 from pathlib import Path
 
-from . import embed_experiment, search
-from .ask import ask, closing_note
+from . import citations, embed_experiment, search
+from .ask import NOTE_ADDED, ask, closing_note
 from .config import ROOT
 from .db import connect, friendly_errors
 from .key_facts import fact_present
@@ -28,8 +30,10 @@ from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, POOL, select
 
 QUESTIONS = ROOT / "eval/questions.jsonl"
 RESULTS = ROOT / "eval/results"
-TOP = 50                # recall@50 and the rank for MRR look this far down the fused list
-FUSED = 100             # 2 lists of 50 candidates can give up to 100 chunks; gold ranks in each list come from these
+TEST_RUNS = ROOT / "eval/test_runs.json"
+CHUNKS = ROOT / "data/processed/labour_chunks.jsonl"
+TOP = 50                # recall@50 and the rank for MRR look this far down the ranked list
+FUSED = 100             # 2 lists of 50 candidates can give up to 100 chunks
 CATEGORIES = ["single_source", "sector_trap", "vocabulary", "follow_reference", "must_refuse", "exact_lookup"]
 EMBEDDINGS = ("bge-m3", "qwen3-4b", "qwen3-4b-plain")
 
@@ -55,8 +59,9 @@ def first_rank(results, wanted, rank_key="rank"):
     return min(ranks) if ranks else None
 
 
-def score_retrieval(item, fused, kept):
-    """Where the gold chunks ended up. `fused` is the ranked hybrid list, `kept` the chunks given to the model."""
+def score_retrieval(item, fused, kept, lists, removed=()):
+    """Where the gold chunks ended up. `fused` is the ranked list, `kept` the chunks given to the model, `lists` the
+    semantic and keyword lists before they were combined, `removed` what was left out while choosing the chunks."""
     wanted = gold_chunks(item)
     if not wanted:
         return None
@@ -66,8 +71,9 @@ def score_retrieval(item, fused, kept):
             "in_context": any(c["id"] in wanted for c in kept),
             "in_top_50": rank is not None,
             "gold_law_in_context": any(c["doc_id"] in gold_documents(item) for c in kept),
-            "semantic_rank": first_rank(fused, wanted, "semantic_rank"),
-            "keyword_rank": first_rank(fused, wanted, "keyword_rank")}
+            "semantic_rank": first_rank(lists["semantic"], wanted),
+            "keyword_rank": first_rank(lists["keyword"], wanted),
+            "removed_as": next((r["reason"] for r in removed if r["id"] in wanted), None)}
 
 
 def score_answer(item, answer, chunks, check, note):
@@ -195,8 +201,9 @@ def read_records(run_dir):
         return [json.loads(line) for line in f]
 
 
-def ranked_list(conn, client, question, embedding):
-    """The fused hybrid list for a question, with the chosen embedding, and the seconds per step."""
+def ranked_list(conn, client, question, embedding, fusion):
+    """The ranked list for a question with the chosen embedding and fusion, the two lists it was made from, and the
+    seconds per step."""
     started = time.perf_counter()
     if embedding == "bge-m3":
         vector = client.embed([normalize(question)])[0]
@@ -204,28 +211,30 @@ def ranked_list(conn, client, question, embedding):
         vector = embed_experiment.embed_question(client, question, instruction=embedding == "qwen3-4b")
     after_embed = time.perf_counter()
     if embedding == "bge-m3":
-        fused = search.hybrid(conn, client, question, k=FUSED, vector=vector)
+        semantic = search.semantic(conn, client, question, search.CANDIDATES, vector)
     else:
-        fused = search.rrf_fuse({"semantic": embed_experiment.semantic(conn, vector, search.CANDIDATES),
-                                 "keyword": search.keyword(conn, question, search.CANDIDATES)}, FUSED)
-    return fused, {"embed question": after_embed - started, "hybrid search": time.perf_counter() - after_embed}
+        semantic = embed_experiment.semantic(conn, vector, search.CANDIDATES)
+    keyword = search.keyword(conn, question, search.CANDIDATES)
+    fused = search.fuse(fusion, semantic, keyword, question, FUSED)
+    return fused, {"semantic": semantic, "keyword": keyword}, {"embed question": after_embed - started,
+                                                               "search": time.perf_counter() - after_embed}
 
 
 def evaluate_item(conn, client, item, config):
     """One question: where its gold chunks rank, and, unless this is a retrieval-only run, the answer and its scores."""
     max_per_document = config["max_per_document"]
-    fused, times = ranked_list(conn, client, item["question"], config["embedding"])
+    fused, lists, times = ranked_list(conn, client, item["question"], config["embedding"], config["fusion"])
     record = {key: item[key] for key in ("id", "category", "split", "answerable", "question")}
     if config["retrieval_only"]:
         kept, removed = select(fused[:POOL], CONTEXT_CHUNKS, max_per_document)
         record["times"] = times
     else:
-        result = ask(conn, client, item["question"], max_per_document=max_per_document)
+        result = ask(conn, client, item["question"], max_per_document=max_per_document, fusion=config["fusion"])
         kept, removed = result["chunks"], result["removed"]
         record.update({"times": result["times"], "answer": result["answer"], "check": result["check"],
                        "tokens": result["tokens"]})
         record["score"] = score_answer(item, result["answer"], kept, result["check"], closing_note())
-    record["retrieval"] = score_retrieval(item, fused, kept)
+    record["retrieval"] = score_retrieval(item, fused, kept, lists, removed)
     record["chunks"] = [{"n": c["n"], "id": c["id"], "doc_id": c["doc_id"], "citation": c["citation"],
                          "article": c["article"]} for c in kept]
     record["removed"] = {"near_duplicate": sum(r["reason"] == "near-duplicate" for r in removed),
@@ -233,19 +242,49 @@ def evaluate_item(conn, client, item, config):
     return record
 
 
+# Who may use the test split, and how each answers one question. Phase 4 adds the agent.
+SYSTEMS = {"one-shot": evaluate_item}
+
+
 def config_name(config):
     kind = "retrieval" if config["retrieval_only"] else "oneshot"
     embedding = f"-{config['embedding']}" if config["embedding"] != "bge-m3" or config["retrieval_only"] else ""
-    return f"{kind}{embedding}-limit{config['max_per_document']}-{config['split']}"
+    return f"{kind}{embedding}-{config['fusion']}-limit{config['max_per_document']}-{config['split']}"
+
+
+def claim_test_run(system, run_name, path=TEST_RUNS, results=RESULTS):
+    """The test split runs once per named system, so its numbers stay honest. A system's first run is recorded in
+    eval/test_runs.json, and only that run, if unfinished, may continue. Returns the name of the run to use."""
+    claims = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    claim = claims.get(system)
+    if not claim:
+        claims[system] = {"run": run_name, "started": run_name.split("_")[0]}
+        path.write_text(json.dumps(claims, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        return run_name
+    if (results / claim["run"] / "summary.json").exists() or claim["run"].split("_", 1)[1] != run_name.split("_", 1)[1]:
+        raise SystemExit(f"{system} has already used its run on the test split ({claim['run']}). It runs once per "
+                         "system, so its numbers stay honest. Use the dev split for experiments.")
+    return claim["run"]
+
+
+def chunk_texts(path=CHUNKS):
+    with Path(path).open(encoding="utf-8") as f:
+        return {chunk["id"]: chunk["text"] for chunk in map(json.loads, f)}
 
 
 def rescore(run_dir):
-    """Score stored answers again with the current key facts and matching. Needs no model and no database."""
+    """Check and score stored answers again with the current code and key facts. Needs no model and no database."""
     items = {i["id"]: i for i in load_questions()}
+    texts = chunk_texts()
     records = read_records(run_dir)
     config = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))["config"]
     for record in records:
         if "answer" in record:
+            chunks = [{**c, "text": texts[c["id"]]} for c in record["chunks"]]
+            note_added = NOTE_ADDED in record["check"]["warnings"]      # ask() knows this; the answer no longer shows it
+            record["check"] = citations.check(record["answer"], chunks, closing_note())
+            if note_added:
+                record["check"]["warnings"].append(NOTE_ADDED)
             record["score"] = score_answer(items[record["id"]], record["answer"], record["chunks"], record["check"],
                                            closing_note())
     with (run_dir / "items.jsonl").open("w", encoding="utf-8") as f:
@@ -255,16 +294,13 @@ def rescore(run_dir):
 
 
 def run(args):
-    config = {"split": args.split, "max_per_document": args.max_per_document, "embedding": args.embedding,
+    config = {"split": args.split, "system": args.system, "fusion": args.fusion,
+              "max_per_document": args.max_per_document, "embedding": args.embedding,
               "retrieval_only": args.retrieval_only, "context_chunks": CONTEXT_CHUNKS, "pool": POOL}
-    name = args.name or config_name(config)
-    run_dir = RESULTS / f"{datetime.date.today():%Y-%m-%d}_{name}"
+    run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
     if args.split == "test":
-        finished = [p.parent.name for p in RESULTS.glob("*/summary.json")
-                    if json.loads(p.read_text(encoding="utf-8"))["config"]["split"] == "test"]
-        if finished:
-            raise SystemExit(f"The test split has already been run ({finished[0]}). It runs only once, so its numbers "
-                             "stay honest. Use the dev split for experiments.")
+        run_name = claim_test_run(args.system, run_name)
+    run_dir = RESULTS / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     records = read_records(run_dir)
     done = {r["id"] for r in records}
@@ -275,7 +311,7 @@ def run(args):
     print(f"{run_dir.name}: {len(items)} questions to run, {len(done)} already done", flush=True)
     with connect() as conn:
         for position, item in enumerate(items, 1):
-            record = evaluate_item(conn, client, item, config)
+            record = SYSTEMS[args.system](conn, client, item, config)
             records.append(record)
             with (run_dir / "items.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -290,6 +326,9 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description="Measure the pipeline on the evaluation set.")
     parser.add_argument("--split", choices=["dev", "test"])
+    parser.add_argument("--system", choices=SYSTEMS, default="one-shot", help="which system answers the questions")
+    parser.add_argument("--fusion", choices=search.FUSIONS, default=search.DEFAULT_FUSION,
+                        help="how semantic and keyword search are combined")
     parser.add_argument("--max-per-document", type=int, default=MAX_PER_DOCUMENT)
     parser.add_argument("--retrieval-only", action="store_true", help="search only, no model answer (fast)")
     parser.add_argument("--embedding", choices=EMBEDDINGS, default="bge-m3",
@@ -305,6 +344,8 @@ def main():
     else:
         if args.embedding != "bge-m3" and not args.retrieval_only:
             parser.error("the other embedding is only for retrieval: use --retrieval-only")
+        if args.split == "test" and (args.retrieval_only or args.ids):
+            parser.error("a system's one test run must answer every question: no --retrieval-only or --ids")
         run(args)
 
 

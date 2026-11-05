@@ -13,6 +13,7 @@ results are weak, and answers with citations. Everything runs locally with Ollam
 - [x] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search. Results are in [docs/search-report.md](docs/search-report.md).
 - [x] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code. Results are in [docs/answer-report.md](docs/answer-report.md): none of the eight answers is fully right yet (four partly, four wrong), so the later phases have a clear baseline to beat.
 - [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
+- [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
 - [ ] Phase 3: Agentic RAG with LangGraph: rewriter (including katharevousa variants) → search tools → judge → at most 3 rounds → answer → citation check.
 - [ ] Phase 4: Compare one-shot and agentic RAG on the evaluation set, for answer quality and time.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
@@ -22,7 +23,8 @@ Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata
 ## How it works
 
 The index, the search, the one-shot answer with its citation check and the measuring are built. The
-rewriter and the judge are the plan.
+rewriter and the judge are the plan. Keyword search is built too, but since Phase 3A answers use semantic
+search alone by default, because mixing the two lost more than it found. `--fusion rrf` brings back the old way.
 
 ```
 BUILD THE INDEX (once)
@@ -48,7 +50,7 @@ ANSWER A QUESTION
   rewriter ........................ planned   Phase 3  <-----+
         |                                                    |
         v                                                    |
-  search tools .................... built     Phase 1B       |
+  search tools .................... built     Phase 1B, 3A   |
         |                                                    |
         v                                                    |
   judge: enough to answer? ........ planned   Phase 3        |
@@ -93,17 +95,19 @@ Phase 2 measured it on the test questions, and Phase 4 compares the two versions
 | `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
 | `docs/answer-report.md` | Phase 1C results: the answers to the same eight questions, their sources and citation checks, with an assessment of each. |
 | `docs/eval-report.md` | Phase 2 results: what the test set contains, the numbers per experiment and category, and the most instructive failures. |
+| `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`) and the stored runs (`results/`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2). |
+| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`) and which system has used its one test run (`test_runs.json`). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
 | `scripts/answer_report.py` | Answers the eight example questions and writes the answer report. |
 | `scripts/check_eval_set.py` | Checks the test set against the chunks and writes the review file. |
 | `scripts/eval_report.py` | Compares the stored runs and writes the evaluation report. |
+| `scripts/retrieval_report.py` | Runs the fusion experiments and writes the retrieval report. |
 | `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
@@ -221,7 +225,8 @@ Run every command below from the repository root, the folder that contains this 
 
     This takes about half an hour, because the model answers 32 questions. Add `--retrieval-only` to measure search
     alone, in seconds. Results go to `eval/results/`, and a run that stops halfway continues where it left off. The 20
-    questions of the test split are for one final measurement, so a second run on them is refused.
+    questions of the test split are for one final measurement per system, so a second run by the same system is
+    refused. `eval/test_runs.json` records who has used it.
 
 ## Everyday commands
 
@@ -237,8 +242,9 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Which models are loaded right now? | `ollama ps` |
 | Load or refresh the chunks in the database | `.venv/bin/python -m labour_rag.load` |
 | Search | `.venv/bin/python -m labour_rag.search "your question"` |
-| Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full) |
-| Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone) |
+| Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full, `--fusion rrf` for the old way of searching) |
+| Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone, `--fusion rrf` for another way of combining the lists) |
+| Compare the ways of combining search results | `.venv/bin/python -I scripts/retrieval_report.py --run` |
 | Compare a second embedding model (optional) | `ollama pull qwen3-embedding:4b`, then `.venv/bin/python -m labour_rag.embed_experiment` (about 2.5 hours), then the line above with `--retrieval-only --embedding qwen3-4b` |
 | Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
 | Run the tests | `.venv/bin/python -m unittest discover -s tests -t .` |
@@ -290,3 +296,6 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
   question: "οικοδομές" doesn't find the act on "εργοτάξια". Some acts are only a header without their
   text. Near-identical clauses (from ILO conventions, or decisions repeated every year) can fill a result
   list. Details are in [docs/search-report.md](docs/search-report.md).
+- **The repeat filter can hide a newer law.** It ignores numbers, so a rule of 16 weeks and an older rule of 15
+  weeks can count as repeats, and only the one ranked first reaches the model. See
+  [docs/retrieval-report.md](docs/retrieval-report.md).

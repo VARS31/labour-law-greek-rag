@@ -17,7 +17,15 @@ from .normalize import fold, normalize
 CITATION = re.compile(r"\[(\d+(?:\s*[,;–-]\s*\d+)*)\]")                    # [1]  [1, 3]  [2-4]
 QUOTE = re.compile(r"«([^«»]{4,}?)»|“([^“”]{4,}?)”|\"([^\"]{4,}?)\"")
 ELLIPSIS = re.compile(r"\s*(?:…|\.\.\.|\[\s*…\s*\]|\(\s*…\s*\))\s*")
-REFUSAL = re.compile(r"Δεν\s+βρέθηκε", re.IGNORECASE)
+REFUSAL = re.compile(r"Δεν\s+βρέθηκε", re.IGNORECASE)                       # the words the prompt asks for
+REFUSAL_REACH = 300     # a refusal is said at the start; later it's about one detail of an answer
+_SOURCES = r"(?:αποσπασματα|κειμενα|πηγες|παραθεματα)"
+# In other words, on folded text: "το άρθρο 2 δεν αναφέρεται στα αποσπάσματα", "τα αποσπάσματα δεν αναφέρουν τίποτα"
+_REFUSAL_IN_OTHER_WORDS = re.compile(
+    r"\bδεν\s+(?:\w+\s+)?(?:αναφερ|περιεχ|περιλαμβαν|υπαρχ|βρισκ|εμφανιζ|προκυπτ|γινεται\s+αναφορα)\w*\s+"
+    rf"(?:\w+\s+){{0,3}}?στ(?:α|ις)\s+(?:\w+\s+)?{_SOURCES}"
+    rf"|\b{_SOURCES}\s+(?:\w+\s+){{0,2}}?δεν\s+(?:αναφερ|περιεχ|περιλαμβαν|απαντ|καλυπτ)\w*")
+_BUT = re.compile(r"\b(?:αλλα|ομως|ωστοσο|παρ'?\s*ολα)\b")
 YEAR = re.compile(r"\b(18[2-9]\d|19\d\d)\b")
 CITATION_REACH = 120   # a quote's citation must follow within this many characters (or precede it in the sentence)
 
@@ -88,6 +96,24 @@ def _sentences(text):
     return [s for s in out if s]
 
 
+def says_not_found(body):
+    """The narrow test: the words the prompt asks for, near the start."""
+    return bool(REFUSAL.search(body[:REFUSAL_REACH]))
+
+
+def is_refusal(body):
+    """Does the answer clearly say that its answer isn't in the sources? Either in the prompt's words, or in a sentence
+    near the start that says so and doesn't go on with "αλλά": that sentence gives an answer after all."""
+    if says_not_found(body):
+        return True
+    for sentence in _sentences(body[:REFUSAL_REACH]):
+        folded = fold(normalize(sentence))
+        match = _REFUSAL_IN_OTHER_WORDS.search(folded)
+        if match and not _BUT.search(folded, match.end()):
+            return True
+    return False
+
+
 def check(answer, chunks, closing_note=None):
     """Check an answer against its chunks (dicts with n and text). Returns a dict with ok, failures, warnings,
     citations (numbers used) and quotes (each with its citation and whether it was found)."""
@@ -122,7 +148,7 @@ def check(answer, chunks, closing_note=None):
             hint = f" (closest passage, {near[0]:.0%} similar: «{near[1]}»)" if near[1] else ""
             failures.append(f"quote not found in {', '.join(f'[{n}]' for n in cited)}: «{text}»{hint}")
 
-    refusal = bool(REFUSAL.search(body[:300]))
+    refusal = is_refusal(body)
     if not refusal and not used:
         failures.append("the answer cites no source")
     if not refusal:

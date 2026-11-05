@@ -1,7 +1,7 @@
-"""Answer a question from the labour-law chunks, one shot: hybrid search, pick 8 chunks without repeats, one
+"""Answer a question from the labour-law chunks, one shot: search, pick 8 chunks without repeats, one
 model call, then a citation check in code.
 
-    .venv/bin/python -m labour_rag.ask "Πόσες ημέρες άδεια δικαιούται ο μισθωτός;" [--show-chunks]
+    .venv/bin/python -m labour_rag.ask "Πόσες ημέρες άδεια δικαιούται ο μισθωτός;" [--show-chunks] [--fusion rrf]
 
 The instructions for the model are in prompts/answer.md, the fixed closing note in prompts/closing_note.md.
 """
@@ -15,9 +15,11 @@ from .config import ROOT
 from .db import connect, friendly_errors
 from .model_client import ModelClient
 from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, retrieve
+from .search import DEFAULT_FUSION, FUSIONS
 
 PROMPT_FILE = ROOT / "prompts/answer.md"
 NOTE_FILE = ROOT / "prompts/closing_note.md"
+NOTE_ADDED = "the model left out the closing note; it was added by the code"
 
 
 def closing_note():
@@ -54,9 +56,9 @@ def ensure_closing_note(answer):
     return f"{answer.strip()}\n\n{note}", True
 
 
-def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT):
+def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT, fusion=DEFAULT_FUSION):
     """Everything about one answer: the chunks, what was removed, the answer, the check and the timings."""
-    chunks, removed, times = retrieve(conn, client, question, k, max_per_document=max_per_document)
+    chunks, removed, times = retrieve(conn, client, question, k, max_per_document=max_per_document, fusion=fusion)
     messages = [{"role": "system", "content": system_prompt()},
                 {"role": "user", "content": user_message(question, chunks)}]
 
@@ -69,7 +71,7 @@ def ask(conn, client, question, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUM
     check = citations.check(answer, chunks, closing_note())
     times["citation check"] = time.perf_counter() - started
     if note_added:
-        check["warnings"].append("the model left out the closing note; it was added by the code")
+        check["warnings"].append(NOTE_ADDED)
     return {"question": question, "chunks": chunks, "removed": removed, "answer": answer, "raw_answer": raw,
             "check": check, "times": times, "model": client.chat_model, "tokens": dict(client.last_chat),
             "messages": messages}
@@ -93,7 +95,7 @@ def print_result(result, show_chunks=False):
     print("\nCITATION CHECK: " + ("OK" if check["ok"] else "FAILED"))
     print(f"  {len(check['citations'])} source(s) cited, {len(check['quotes'])} quote(s), "
           f"{sum(bool(q['found_in']) for q in check['quotes'])} found in the cited source"
-          + ("; the answer is a refusal (\"Δεν βρέθηκε…\")" if check["refusal"] else ""))
+          + ("; the answer is a refusal" if check["refusal"] else ""))
     for f in check["failures"]:
         print(textwrap.fill(f, width, initial_indent="  FAIL  ", subsequent_indent="        "))
     for w in check["warnings"]:
@@ -111,9 +113,11 @@ def main():
     parser.add_argument("question")
     parser.add_argument("--show-chunks", action="store_true", help="also print the chunks the model received")
     parser.add_argument("-k", type=int, default=CONTEXT_CHUNKS, help=f"chunks to give the model ({CONTEXT_CHUNKS})")
+    parser.add_argument("--fusion", choices=FUSIONS, default=DEFAULT_FUSION,
+                        help=f"how semantic and keyword search are combined ({DEFAULT_FUSION})")
     args = parser.parse_args()
     with connect() as conn:
-        print_result(ask(conn, ModelClient.from_settings(), args.question, args.k), args.show_chunks)
+        print_result(ask(conn, ModelClient.from_settings(), args.question, args.k, fusion=args.fusion), args.show_chunks)
 
 
 if __name__ == "__main__":

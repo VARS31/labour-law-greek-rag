@@ -2,7 +2,7 @@
 
 import unittest
 
-from labour_rag.law_mentions import find_mentions, resolve
+from labour_rag.law_mentions import find_mentions, names_a_law, resolve
 
 
 def laws(text):
@@ -59,6 +59,18 @@ class Forms(unittest.TestCase):
 
     def test_abbreviation_inside_another_is_not_counted_twice(self):
         self.assertEqual(laws("Α.Ν. 99/1967"), [("Α.Ν.", "99", 1967)])
+
+
+class NamesALaw(unittest.TestCase):
+    def test_a_law_or_an_article(self):
+        for question in ("Τι λέει το άρθρο 2 του Ν. 1837/1989;", "Τι προβλέπει ο Α.Ν. 380/1968 για την Πρωτομαγιά;",
+                         "Τι προβλέπει ο Ν. 4808/2021 για την ψηφιακή κάρτα εργασίας;", "Τι ορίζει το άρθρο 5;"):
+            self.assertTrue(names_a_law(question), question)
+
+    def test_other_numbers_dont_count(self):
+        for question in ("Η εταιρεία μου έχει 40 άτομα. Πόσες απολύσεις μετράνε ως ομαδικές;",
+                         "Ένα παιδί 15 χρονών πόσες ώρες μπορεί να δουλεύει;", "Ποιο άρθρο μιλά για άδεια;"):
+            self.assertFalse(names_a_law(question), question)
 
 
 class Resolve(unittest.TestCase):

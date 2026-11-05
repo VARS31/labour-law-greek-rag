@@ -24,9 +24,9 @@
   "fact_share": 0.506,
   "all_facts": 0.346,
   "gold_law_cited": 0.692,
-  "check_passed": 0.385,
+  "check_passed": 0.423,
   "correct_refusals": 4,
-  "wrong_refusals": 1,
+  "wrong_refusals": 2,
   "search_problems": 13,
   "reading_problems": 6
  },
@@ -163,9 +163,9 @@
    "fact_share": 0.5,
    "all_facts": 0.5,
    "gold_law_cited": 0.5,
-   "check_passed": 0.0,
+   "check_passed": 0.5,
    "correct_refusals": 0,
-   "wrong_refusals": 0,
+   "wrong_refusals": 1,
    "search_problems": 1,
    "reading_problems": 0
   }

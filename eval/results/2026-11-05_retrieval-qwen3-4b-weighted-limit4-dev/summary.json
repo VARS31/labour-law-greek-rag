@@ -1,0 +1,105 @@
+{
+ "config": {
+  "split": "dev",
+  "system": "one-shot",
+  "fusion": "weighted",
+  "max_per_document": 4,
+  "embedding": "qwen3-4b",
+  "retrieval_only": true,
+  "context_chunks": 8,
+  "pool": 30
+ },
+ "overall": {
+  "questions": 32,
+  "with_gold_chunks": 27,
+  "recall_at_8": 0.741,
+  "recall_at_50": 1.0,
+  "mrr": 0.481,
+  "gold_law_in_context": 0.889,
+  "semantic_recall_at_8": 0.852,
+  "semantic_recall_at_50": 1.0,
+  "semantic_mrr": 0.614,
+  "keyword_recall_at_50": 0.556,
+  "seconds_median": 0.126
+ },
+ "by_category": {
+  "single_source": {
+   "questions": 15,
+   "with_gold_chunks": 15,
+   "recall_at_8": 0.867,
+   "recall_at_50": 1.0,
+   "mrr": 0.57,
+   "gold_law_in_context": 0.933,
+   "semantic_recall_at_8": 0.933,
+   "semantic_recall_at_50": 1.0,
+   "semantic_mrr": 0.747,
+   "keyword_recall_at_50": 0.6,
+   "seconds_median": 0.129
+  },
+  "sector_trap": {
+   "questions": 4,
+   "with_gold_chunks": 4,
+   "recall_at_8": 0.75,
+   "recall_at_50": 1.0,
+   "mrr": 0.661,
+   "gold_law_in_context": 1.0,
+   "semantic_recall_at_8": 1.0,
+   "semantic_recall_at_50": 1.0,
+   "semantic_mrr": 0.625,
+   "keyword_recall_at_50": 1.0,
+   "seconds_median": 0.125
+  },
+  "vocabulary": {
+   "questions": 4,
+   "with_gold_chunks": 4,
+   "recall_at_8": 0.25,
+   "recall_at_50": 1.0,
+   "mrr": 0.169,
+   "gold_law_in_context": 0.5,
+   "semantic_recall_at_8": 0.75,
+   "semantic_recall_at_50": 1.0,
+   "semantic_mrr": 0.513,
+   "keyword_recall_at_50": 0.0,
+   "seconds_median": 0.122
+  },
+  "follow_reference": {
+   "questions": 2,
+   "with_gold_chunks": 2,
+   "recall_at_8": 0.5,
+   "recall_at_50": 1.0,
+   "mrr": 0.184,
+   "gold_law_in_context": 1.0,
+   "semantic_recall_at_8": 0.5,
+   "semantic_recall_at_50": 1.0,
+   "semantic_mrr": 0.144,
+   "keyword_recall_at_50": 0.5,
+   "seconds_median": 0.126
+  },
+  "must_refuse": {
+   "questions": 5,
+   "with_gold_chunks": 0,
+   "recall_at_8": null,
+   "recall_at_50": null,
+   "mrr": null,
+   "gold_law_in_context": null,
+   "semantic_recall_at_8": null,
+   "semantic_recall_at_50": null,
+   "semantic_mrr": null,
+   "keyword_recall_at_50": null,
+   "seconds_median": 0.116
+  },
+  "exact_lookup": {
+   "questions": 2,
+   "with_gold_chunks": 2,
+   "recall_at_8": 1.0,
+   "recall_at_50": 1.0,
+   "mrr": 0.375,
+   "gold_law_in_context": 1.0,
+   "semantic_recall_at_8": 0.5,
+   "semantic_recall_at_50": 1.0,
+   "semantic_mrr": 0.268,
+   "keyword_recall_at_50": 0.5,
+   "seconds_median": 0.121
+  }
+ }
+}

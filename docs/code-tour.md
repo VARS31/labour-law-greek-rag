@@ -23,7 +23,8 @@ A few words used below:
 - **Gold source**: the chunk that really contains the correct answer to a test question.
 - **Key fact**: one short fact a correct answer must contain.
 - **Dev and test**: dev questions may be looked at while improving things; test questions are for one final
-  measurement only.
+  measurement per system only.
+- **Fusion**: combining the semantic and the keyword list into one ranked list.
 
 Every example on this page is real: it was copied from the data or from the output of the code.
 
@@ -264,7 +265,7 @@ purpose, so that the Phase 0 numbers can be reproduced exactly.
         │
  question ─── normalize.py   the same cleaning as the chunks
         │
-        │  search.py         search by meaning + search by words, combined (hybrid), top 30
+        │  search.py         search by meaning, top 30 (until Phase 3A: combined with search by words)
         │  retrieve.py       skip near-identical chunks and a 3rd chunk from the same document → 8 chunks
         ▼
  8 numbered chunks [1]–[8] + the instructions in prompts/answer.md
@@ -348,7 +349,7 @@ database and the model, so they are checked through the two reports instead.
 - **`labour_rag/evaluate.py`** runs the questions of a split and scores them.
   a split and settings (limit per document, retrieval only, which embedding) → a folder with the result of every
   question and the numbers per category. A run continues where it stopped if interrupted, stored answers can be scored
-  again without the model (`--rescore`), and a second run on the test split is refused.
+  again without the model (`--rescore`), and the test split runs once per system.
 - **`labour_rag/key_facts.py`** decides whether a key fact is in an answer, without a model.
   a fact + an answer → yes or no: all the fact's numbers must be there and enough of its other words, ignoring accents
   and word endings. "τρεις μήνες", "3 μήνες" and "τρίμηνο" count as the same.
@@ -383,6 +384,39 @@ checks on the test set) and `tests/test_law_mentions.py` (every form of law cita
 themselves need the database and the model, so their results are checked by reading the answers, as
 `docs/eval-report.md` describes.
 
+## Phase 3A: fixing the fusion step
+
+```
+ the question
+        │
+        │  search.py         semantic list and keyword list (50 chunks each)
+        │  search.fuse       one ranked list, in one of five ways
+        │  retrieve.py       skip repeats and a 3rd chunk from the same document → 8 chunks
+        ▼
+ did the right chunk reach the writer?  (evaluate.py, no model answer)
+        │
+        │  scripts/retrieval_report.py     all combinations, the winner by the rule, the five questions from Phase 2
+        ▼
+ docs/retrieval-report.md
+```
+
+### What changed in the code
+
+- **`labour_rag/search.py`** gained `fuse`, with five ways of combining the lists: `semantic` (the new default), `rrf` (the old
+  default), `weighted`, `reserved` and `law-lookup`. `ask` and `evaluate` take `--fusion` to choose one.
+  two ranked lists + a question → one ranked list.
+- **`labour_rag/law_mentions.py`** gained `names_a_law`, which `law-lookup` uses.
+  a question → yes or no: does it name a law or an article?
+- **`labour_rag/citations.py`** gained `is_refusal`.
+  an answer → yes or no: does it clearly say, near its start, that the answer isn't in the sources?
+- **`labour_rag/evaluate.py`** gained `claim_test_run`.
+  a system and a run → permission to use the test split, once per system, recorded in `eval/test_runs.json`. `--rescore` now also
+  repeats the citation check, so stored answers follow the current rules.
+
+**Tests:** `tests/test_search_parts.py` (each way of fusing), `tests/test_answering.py` (refusals and partial answers, with real
+sentences), `tests/test_law_mentions.py` (does a question name a law) and `tests/test_evaluate.py` (the test guard, how the winner
+is picked).
+
 ## Running the tests
 
 ```bash
@@ -390,7 +424,7 @@ themselves need the database and the model, so their results are checked by read
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 124 of them, almost all with real strings from the data, and they run in under a second. If a later
+are 144 of them, almost all with real strings from the data, and they run in under a second. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

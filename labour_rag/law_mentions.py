@@ -54,9 +54,10 @@ def _kind(match):
     return next(name for name in _TYPES if match.group(name))
 
 
-def find_mentions(text):
+def find_mentions(text, any_year=False):
     """The numbered laws mentioned in a text, as Mention(abbr, number, year or None, start, end). The positions
-    refer to fold(text)."""
+    refer to fold(text). Years outside 1830-2005 are dropped as misreadings, unless any_year is set: chunks stop in
+    1999, but a question may name a newer law."""
     folded = fold(text)
     found = []
     for m in _FORWARD.finditer(folded):
@@ -85,7 +86,15 @@ def find_mentions(text):
         found.append(Mention(_ABBR[_kind(m)], number, year, m.start(), m.end()))
     for m in _REVERSED.finditer(folded):
         found.append(Mention(_ABBR[_kind(m)], m.group("number"), full_year(m.group("year")), m.start(), m.end()))
-    return [f for f in found if f.year is None or 1830 <= f.year <= 2005]
+    return [f for f in found if any_year or f.year is None or 1830 <= f.year <= 2005]
+
+
+_ARTICLE_NUMBER = re.compile(r"(?<!\w)αρθρ\w*\.?\s*\d+")
+
+
+def names_a_law(question):
+    """True if a question names a law or an article: "Ν. 1837/1989", "άρθρο 2"."""
+    return bool(find_mentions(question, any_year=True) or _ARTICLE_NUMBER.search(fold(question)))
 
 
 def resolve(mentions, documents, min_number_without_year=100):

@@ -1,4 +1,4 @@
-"""Choose the chunks to give the model: hybrid search, then near-duplicates and same-document repeats removed.
+"""Choose the chunks to give the model: search, then near-duplicates and same-document repeats removed.
 
 Near-identical chunks (the same ILO clause in ten conventions, a bonus decision re-issued every year) would
 otherwise fill the model's context with one text, as Phase 1B showed (docs/search-report.md).
@@ -13,7 +13,7 @@ from .normalize import fold, normalize
 NEAR_IDENTICAL = 0.5    # two texts are near-identical when half of their distinct words are shared
 CONTEXT_CHUNKS = 8      # chunks given to the model
 MAX_PER_DOCUMENT = 2    # at most this many chunks from one document
-POOL = 30               # fused hybrid results looked at to find those 8
+POOL = 30               # ranked search results looked at to find those 8
 
 
 def word_set(text):
@@ -45,7 +45,8 @@ def select(results, k=CONTEXT_CHUNKS, max_per_document=MAX_PER_DOCUMENT):
     return [dict(r, n=i) for i, (r, _) in enumerate(kept, 1)], removed
 
 
-def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL, max_per_document=MAX_PER_DOCUMENT):
+def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL, max_per_document=MAX_PER_DOCUMENT,
+             fusion=search.DEFAULT_FUSION):
     """The k chunks for a question, numbered n = 1..k, plus what was removed and the time of each step."""
     times = {}
     started = time.perf_counter()
@@ -53,8 +54,8 @@ def retrieve(conn, client, question, k=CONTEXT_CHUNKS, pool=POOL, max_per_docume
     times["embed question"] = time.perf_counter() - started
 
     started = time.perf_counter()
-    results = search.hybrid(conn, client, question, k=pool, vector=vector)
-    times["hybrid search"] = time.perf_counter() - started
+    results = search.ranked(conn, client, question, pool, fusion, vector=vector)
+    times["search"] = time.perf_counter() - started
 
     started = time.perf_counter()
     kept, removed = select(results, k, max_per_document)

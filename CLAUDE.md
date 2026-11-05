@@ -28,6 +28,8 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/answer-report.md](docs/answer-report.md))
 - 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics (**done**,
   [docs/eval-report.md](docs/eval-report.md); fetch list for Phase 5 in [docs/missing-laws.md](docs/missing-laws.md))
+- 3A: fix the fusion step: five ways of combining the search lists compared, retrieval only (**done**,
+  [docs/retrieval-report.md](docs/retrieval-report.md))
 - 3: agentic RAG with LangGraph: rewriter (incl. katharevousa variants) → search tools → judge → max 3
   rounds → answer → citation check
 - 4: compare one-shot vs agentic on the eval set (quality, time)
@@ -36,7 +38,7 @@ Same list as README.md "Status"; keep the two in sync.
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 3.
+Next: the rest of Phase 3.
 
 - **After each phase, update the README status, layout and diagram.**
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
@@ -88,8 +90,10 @@ Next: Phase 3.
 
 ## Answering (Phase 1C)
 
-- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks]`: `retrieve.py` (hybrid top 30 → skip near-duplicates
-  at 50% word overlap and a 3rd chunk per document → 8 chunks) → one `chat()` call → `citations.check`.
+- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks] [--fusion rrf]`: `retrieve.py` (top 30, by default from semantic
+  search alone → skip near-duplicates at 50% word overlap and a 3rd chunk per document → 8 chunks) → one `chat()` call →
+  `citations.check`. `search.hybrid` stays equal-weight RRF, and `scripts/answer_report.py` pins `fusion="rrf"`, so the
+  Phase 1B and 1C reports describe what they measured.
 - Chat settings in `.env`: CHAT_MODEL (ministral-3:8b), CHAT_TEMPERATURE 0.2, CHAT_NUM_CTX 16384, CHAT_SEED 42.
   `chat()` raises if the prompt fills the context window (Ollama would cut it silently).
 - Model instructions: `prompts/answer.md` (`{closing_note}` is filled from `prompts/closing_note.md`). The user edits
@@ -102,12 +106,15 @@ Next: Phase 3.
 
 ## Evaluation (Phase 2)
 
-- `.venv/bin/python -m labour_rag.evaluate --split dev [--max-per-document 4] [--retrieval-only] [--embedding qwen3-4b|qwen3-4b-plain]`
+- `.venv/bin/python -m labour_rag.evaluate --split dev [--fusion rrf] [--max-per-document 4] [--retrieval-only] [--embedding qwen3-4b|qwen3-4b-plain]`
   writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
-  `--rescore <dir>` scores stored answers again without a model or database.
-- Test split: run once (`2026-11-04_oneshot-limit2-test`) and the code refuses a second run. Don't tune on it and don't
-  read its answers. A fresh test needs new questions. Phase 4's agent needs its own single run on these questions, so the guard in
-  `evaluate.run` must then allow one run per system, no more; ask the owner first.
+  `--rescore <dir>` checks and scores stored answers again without a model or database (chunk text comes from the chunks file).
+- Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). The one-shot baseline has used its
+  run (`2026-11-04_oneshot-limit2-test`, equal-weight RRF). `--system` only offers systems in `evaluate.SYSTEMS`; Phase 4 adds the
+  agent there. Don't tune on the test split and don't read its answers: report which test items change by id only. A fresh test
+  needs new questions.
+- Refusals: `citations.is_refusal`, the prompt's "Δεν βρέθηκε" or other clear words near the start of the answer, unless the
+  sentence goes on with "αλλά". It doesn't check that a refusal names where the rule would be.
 - Test set: `eval/questions.jsonl`. Expected answers follow our data, not today's law. After editing it, run
   `.venv/bin/python -I scripts/check_eval_set.py` (about a minute): every quote must be in its chunk. Its `--write-review`
   never overwrites `eval/review.md`, which holds the owner's verdicts.
@@ -118,6 +125,9 @@ Next: Phase 3.
 - Second embedding model: `.venv/bin/python -m labour_rag.embed_experiment` fills `chunk_embeddings_qwen3_4b` (schema in
   `sql/005_embedding_experiment.sql`) with `qwen3-embedding:4b`, resuming if interrupted. It takes about 2.5 hours; bge-m3 took 5
   minutes. The `chunks` table and its bge-m3 vectors are untouched.
+- Fusion experiments (Phase 3A): `.venv/bin/python -I scripts/retrieval_report.py --run` runs what's missing of 5 ways × 2
+  embeddings × 2 limits and regenerates `docs/retrieval-report.md`; without `--run` it only rewrites the report. It works out the
+  winner and stops if that isn't `search.DEFAULT_FUSION`. The default embedding stays bge-m3 until the owner decides.
 - Don't run two Ollama jobs at once while measuring time. A model run's times also move with the machine's load.
 
 ## Code

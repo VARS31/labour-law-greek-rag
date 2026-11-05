@@ -4,7 +4,7 @@
   keyword   Postgres full-text search: accent-insensitive, Greek stopwords removed, any query word may match
   hybrid    Reciprocal Rank Fusion (RRF) of the two lists
 
-The question is cleaned with the same normalisation as the chunks (labour_rag.normalize).
+fuse() has the ways of combining the lists that docs/retrieval-report.md compares. The question is cleaned with the same normalisation as the chunks (labour_rag.normalize).
 
     .venv/bin/python -m labour_rag.search "κανονική άδεια εργαζομένων" [-k 10]
 """
@@ -14,11 +14,17 @@ import shutil
 import textwrap
 
 from .db import connect, friendly_errors, vector_literal
+from .law_mentions import names_a_law
 from .model_client import ModelClient
 from .normalize import normalize
 
 CANDIDATES = 50     # how many results hybrid takes from each list before fusing
 RRF_K = 60          # the usual RRF constant: score = sum of 1 / (RRF_K + rank)
+FUSIONS = ("semantic", "rrf", "weighted", "reserved", "law-lookup")     # simplest first
+DEFAULT_FUSION = "semantic"     # chosen by experiment, docs/retrieval-report.md; "rrf" is the old default
+SEMANTIC_WEIGHT = 2     # "weighted": a place in the semantic list counts this many times a place in the keyword list
+SEMANTIC_PLACES = 6     # "reserved" and "law-lookup": the first places go to semantic search…
+KEYWORD_PLACES = 2      # … and the next ones to keyword chunks that semantic search hasn't placed yet
 _COLUMNS = "id, doc_id, citation, citation_fallback, article, title, year, is_note, is_stub, text"
 
 _SEMANTIC = f"""
@@ -86,22 +92,56 @@ def keyword(conn, question, k=10):
     return _rows(conn.execute(_KEYWORD, {"q": normalize(question), "k": k}))
 
 
-def rrf_fuse(lists, k=10, rrf_k=RRF_K):
-    """Reciprocal Rank Fusion of {name: ranked results}: a chunk scores 1 / (rrf_k + rank) in each list it
-    appears in, summed. Each result keeps its rank in every list as <name>_rank (None if absent)."""
+def rrf_fuse(lists, k=10, rrf_k=RRF_K, weights=None):
+    """Reciprocal Rank Fusion of {name: ranked results}: a chunk scores weight / (rrf_k + rank) in each list it
+    appears in, summed (weights default to 1). Each result keeps its rank in every list as <name>_rank (None if
+    absent)."""
     fused = {}
     for name, results in lists.items():
         for r in results:
             entry = fused.setdefault(r["id"], {**r, "score": 0.0, **{f"{n}_rank": None for n in lists}})
-            entry["score"] += 1 / (rrf_k + r["rank"])
+            entry["score"] += (weights or {}).get(name, 1) / (rrf_k + r["rank"])
             entry[f"{name}_rank"] = r["rank"]
     ranked = sorted(fused.values(), key=lambda r: (-r["score"], r["id"]))[:k]
     return [dict(r, rank=i) for i, r in enumerate(ranked, 1)]
 
 
+def reserved_places(semantic_results, keyword_results, first=SEMANTIC_PLACES, added=KEYWORD_PLACES):
+    """Semantic's first places, then the best keyword chunks not among them, then the rest of semantic. So keyword
+    search can add what semantic missed, but can't push out what semantic ranked highest."""
+    head = semantic_results[:first]
+    extra = [r for r in keyword_results if r["id"] not in {h["id"] for h in head}][:added]
+    placed = {r["id"] for r in head + extra}
+    return head + extra + [r for r in semantic_results[first:] if r["id"] not in placed]
+
+
+def fuse(fusion, semantic_results, keyword_results, question, k=10):
+    """One ranked list from the two, by the chosen way (see FUSIONS). Every result keeps its rank in each list as
+    semantic_rank and keyword_rank, as rrf_fuse does."""
+    lists = {"semantic": semantic_results, "keyword": keyword_results}
+    if fusion == "rrf":
+        return rrf_fuse(lists, k)
+    if fusion == "weighted":
+        return rrf_fuse(lists, k, weights={"semantic": SEMANTIC_WEIGHT})
+    if fusion == "semantic" or (fusion == "law-lookup" and not names_a_law(normalize(question))):
+        chunks = semantic_results
+    elif fusion in ("reserved", "law-lookup"):
+        chunks = reserved_places(semantic_results, keyword_results)
+    else:
+        raise ValueError(f"unknown fusion: {fusion}")
+    ranks = {name: {r["id"]: r["rank"] for r in results} for name, results in lists.items()}
+    return [{**r, "rank": i, **{f"{name}_rank": ranks[name].get(r["id"]) for name in lists}}
+            for i, r in enumerate(chunks[:k], 1)]
+
+
+def ranked(conn, client, question, k=10, fusion=DEFAULT_FUSION, candidates=CANDIDATES, vector=None):
+    """The k best chunks for a question, by the chosen way of combining semantic and keyword search."""
+    keyword_results = [] if fusion == "semantic" else keyword(conn, question, candidates)
+    return fuse(fusion, semantic(conn, client, question, candidates, vector), keyword_results, question, k)
+
+
 def hybrid(conn, client, question, k=10, candidates=CANDIDATES, vector=None):
-    return rrf_fuse({"semantic": semantic(conn, client, question, candidates, vector),
-                     "keyword": keyword(conn, question, candidates)}, k)
+    return ranked(conn, client, question, k, "rrf", candidates, vector)
 
 
 def search_all(conn, client, question, k=10):

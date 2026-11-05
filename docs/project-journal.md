@@ -11,7 +11,8 @@ Phase 0   Explore the data ............................. done
 Phase 1A  Clean + chunk ................................ done
 Phase 1B  Database (Docker) + embeddings + search ...... done
 Phase 1C  One-shot answers (baseline) .................. done   0 of 8 fully correct
-Phase 2   Test set + measurements ...................... IN PROGRESS (test set drafted, review done)
+Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete
+Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
 Phase 3   Agentic RAG with LangGraph
 Phase 4   Comparisons (one-shot vs agent, models, maybe Claude Haiku)
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
@@ -171,6 +172,42 @@ Missing laws: 2,716 mentions point to 700 laws we don't have, 274 of them in oth
 - Before buying a better model, check where the result gets lost.
 - With 27 questions, one question is about 4 points. Differences of a question or two are noise.
 - A score matched without a model can't read meaning: it can't see "δεν". Check it by hand once, and say how far it can be trusted.
+
+---
+
+## Phase 3A: fix the fusion step
+
+**Goal:** stop losing the right chunk when the semantic and keyword lists are combined. Retrieval only, on dev: no writer, no prompt changes.
+
+**What we did:** five ways of combining the lists × bge-m3 and qwen3 × limit 2 and 4 → winner picked by the rule (most right chunks reaching the writer; within one question, the simpler way) → made it the default, old way selectable with `--fusion rrf` → wider refusal detection, all stored answers scored again → test split now runs once per named system → [retrieval-report.md](retrieval-report.md).
+
+**Numbers** (questions of 27 whose right chunk reaches the writer)
+
+| Way of combining | bge-m3, limit 2 | bge-m3, limit 4 | qwen3, limit 2 | qwen3, limit 4 |
+|---|---|---|---|---|
+| (a) RRF, equal weights (old) | 13 | 16 | 14 | 17 |
+| (b) RRF, semantic counts double | 15 | 17 | 19 | 20 |
+| **(c) Semantic only (winner)** | **17** | 19 | 22 | 23 |
+| (d) Semantic, keyword only if a law is named | 17 | 19 | 22 | 23 |
+| (e) 6 semantic places, then 2 keyword | 17 | 20 | 22 | 23 |
+
+qwen3 beats bge-m3 by 5 of 27 at limit 2 and 4 at limit 4, so it clears the bar of 3. The default stays bge-m3 until I decide.
+
+Refusals: 2 past results change, both to wrong refusals: `lookup-01` (dev, wrong refusals 1 → 2, citation check 10 → 11 of 26) and `lookup-02` (test, wrong refusals 1 → 2). The Phase 2 block above keeps the old numbers.
+
+**Findings**
+- **Why fusion failed:** with constant 60 and 50 chunks per list, any chunk in both lists beat the first result of either list, even at 50th in each.
+- Of the five questions fusion had lost, 4 now arrive (`vocab-06`, `reference-01`, `single-14`, `vocab-02`). `single-17` is now stopped by the limit of 2, not by fusion.
+- Keyword search added nothing at limit 2. But dev has only 2 questions with a gold chunk that name a law, and `sector-02` is 2nd in keyword and 20th in semantic.
+- **The repeat filter can hide a newer law:** it ignores numbers, so 15 weeks (older) and 16 weeks (newer) count as repeats and `single-15` now gets the older one. Not fixed yet.
+
+**Decisions:** semantic only is the new default. Limit stays 2. Test baseline stays the old setup, because one-shot has used its one run. The agent gets its own run in Phase 4.
+
+**Lessons**
+- Work the formula out by hand. Two lines of arithmetic explained the failure the numbers had only shown.
+- A filter that was harmless under one order can do damage under another. Changing one step can expose another.
+- The simplest option can win. A rule fixed in advance (within one question, the simpler way) stops me talking myself into something fancier.
+- More right chunks is a promise, not a result. Only a run with the writer can show better answers.
 
 ---
 

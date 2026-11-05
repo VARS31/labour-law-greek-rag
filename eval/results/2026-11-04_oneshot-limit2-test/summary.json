@@ -26,7 +26,7 @@
   "gold_law_cited": 0.938,
   "check_passed": 0.438,
   "correct_refusals": 2,
-  "wrong_refusals": 1,
+  "wrong_refusals": 2,
   "search_problems": 5,
   "reading_problems": 6
  },
@@ -165,7 +165,7 @@
    "gold_law_cited": 1.0,
    "check_passed": 1.0,
    "correct_refusals": 0,
-   "wrong_refusals": 0,
+   "wrong_refusals": 1,
    "search_problems": 1,
    "reading_problems": 0
   }

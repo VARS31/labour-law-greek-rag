@@ -2,7 +2,7 @@
 
 import unittest
 
-from labour_rag.citations import check, closest, quote_found
+from labour_rag.citations import check, closest, is_refusal, quote_found
 from labour_rag.retrieve import select
 
 # glc-40073-002, Α.Ν. 539/1945 Άρθρο 2 (start)
@@ -64,6 +64,28 @@ class Check(unittest.TestCase):
         result = check("**Σύντομη απάντηση:** Δεν βρέθηκε απάντηση στα διαθέσιμα κείμενα.\n" + NOTE, CHUNKS, NOTE)
         self.assertTrue(result["ok"])
         self.assertTrue(result["refusal"])
+
+    def test_refusal_in_other_words_needs_no_citation(self):
+        answer = ("**Σύντομη απάντηση:**\nΤο άρθρο 2 του Ν. 1837/1989 δεν αναφέρεται στα αποσπάσματα που σου δόθηκαν. "
+                  "Ωστόσο, το άρθρο 1 του ίδιου νόμου ορίζει το πεδίο εφαρμογής του.")
+        result = check(answer, CHUNKS)
+        self.assertTrue(result["refusal"])
+        self.assertTrue(result["ok"])
+
+    def test_ways_of_saying_it_isnt_in_the_sources(self):
+        for answer in ("Τα αποσπάσματα δεν αναφέρουν τίποτα για τον Ν. 3863/2010.",
+                       "Ο Ν. 3863/2010 δεν αναφέρεται στα αποσπάσματα που σου δώσαμε.",
+                       "Η απάντηση δεν περιέχεται στα διαθέσιμα κείμενα.",
+                       "Δεν βρέθηκε απάντηση στα διαθέσιμα κείμενα."):
+            self.assertTrue(is_refusal(answer), answer)
+
+    def test_a_missing_detail_in_an_answer_is_not_a_refusal(self):
+        for answer in ("Η προθεσμία δεν ορίζεται συγκεκριμένα σε αυτό το απόσπασμα, αλλά γενικά είναι πέντε χρόνια.",
+                       "Η προθεσμία δεν αναφέρεται στα αποσπάσματα, αλλά γενικά είναι πέντε χρόνια.",
+                       "Ο νόμος δεν αναφέρει άλλες υποχρεωτικές αργίες εκτός από αυτές τις τέσσερις [2].",
+                       "Ο μισθωτός δικαιούται άδεια [1]. " + "Αυτή δίνεται κάθε έτος [1]. " * 12
+                       + "Το ποσό δεν αναφέρεται στα αποσπάσματα."):
+            self.assertFalse(is_refusal(answer), answer)
 
     def test_answer_without_any_citation_fails(self):
         result = check("Ο μισθωτός δικαιούται είκοσι τέσσερις ημέρες άδεια κάθε χρόνο από το 1945.", CHUNKS)

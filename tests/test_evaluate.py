@@ -1,10 +1,15 @@
 """Phase 2 parts that run without a database or model: matching key facts and scoring."""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from labour_rag.evaluate import first_rank, gold_documents, problem, score_answer, score_retrieval, summarise_group
+from labour_rag.evaluate import (claim_test_run, config_name, first_rank, gold_documents, problem, score_answer,
+                                 score_retrieval, summarise_group)
 from labour_rag.key_facts import fact_present, stem
 from scripts.check_eval_set import copied_run, quote_in
+from scripts.retrieval_report import chance_of_split, pick_winner
 
 NOTE = "Σημείωση: Οι πηγές φτάνουν μέχρι το 1999."
 
@@ -64,6 +69,67 @@ ITEM = {"id": "x", "answerable": True, "key_facts": ["Τρεις μήνες", "�
 FUSED = [{"id": "glc-00001-000", "rank": 1, "semantic_rank": 1, "keyword_rank": None},
          {"id": "glc-41850-005", "rank": 2, "semantic_rank": None, "keyword_rank": 7}]
 KEPT = [{"n": 1, "id": "glc-00001-000", "doc_id": 1}, {"n": 2, "id": "glc-41850-005", "doc_id": 41850}]
+LISTS = {"semantic": [{"id": "glc-41850-005", "rank": 4}], "keyword": [{"id": "glc-00001-000", "rank": 1}]}
+
+
+class TestGuard(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.results = Path(folder.name)
+        self.claims = self.results / "test_runs.json"
+
+    def claim(self, system, run):
+        return claim_test_run(system, run, self.claims, self.results)
+
+    def finish(self, run):
+        (self.results / run).mkdir()
+        (self.results / run / "summary.json").write_text("{}", encoding="utf-8")
+
+    def test_the_first_run_of_a_system_is_recorded(self):
+        self.assertEqual(self.claim("one-shot", "2026-11-04_a-test"), "2026-11-04_a-test")
+        self.assertEqual(json.loads(self.claims.read_text(encoding="utf-8")),
+                         {"one-shot": {"run": "2026-11-04_a-test", "started": "2026-11-04"}})
+
+    def test_a_system_gets_one_run_and_another_system_gets_its_own(self):
+        self.claim("one-shot", "2026-11-04_a-test")
+        self.finish("2026-11-04_a-test")
+        with self.assertRaises(SystemExit):
+            self.claim("one-shot", "2026-11-05_a-test")
+        with self.assertRaises(SystemExit):
+            self.claim("one-shot", "2026-11-05_other-settings-test")
+        self.assertEqual(self.claim("agent", "2026-11-06_agent-test"), "2026-11-06_agent-test")
+        self.assertEqual(set(json.loads(self.claims.read_text(encoding="utf-8"))), {"one-shot", "agent"})
+
+    def test_an_interrupted_run_continues_but_cant_change_its_settings(self):
+        self.claim("one-shot", "2026-11-04_a-test")
+        self.assertEqual(self.claim("one-shot", "2026-11-05_a-test"), "2026-11-04_a-test")
+        with self.assertRaises(SystemExit):
+            self.claim("one-shot", "2026-11-05_other-settings-test")
+
+
+class Winner(unittest.TestCase):
+    def counts(self, **others):
+        return {"semantic": 10, "rrf": 10, "weighted": 10, "reserved": 10, "law-lookup": 10, **others}
+
+    def test_a_clear_win(self):
+        self.assertEqual(pick_winner(self.counts(rrf=13, semantic=11)), "rrf")
+
+    def test_within_one_question_the_simpler_one_wins(self):
+        self.assertEqual(pick_winner(self.counts(reserved=11)), "semantic")
+        self.assertEqual(pick_winner(self.counts(semantic=8, rrf=9, reserved=10, weighted=7, **{"law-lookup": 7})), "rrf")
+
+    def test_chance_of_a_split(self):
+        self.assertAlmostEqual(chance_of_split(6, 1), 16 / 128)
+        self.assertEqual(chance_of_split(1, 1), 1.0)
+
+
+class RunNames(unittest.TestCase):
+    def test_fusion_is_in_the_name(self):
+        config = {"retrieval_only": True, "embedding": "qwen3-4b", "fusion": "semantic", "max_per_document": 2, "split": "dev"}
+        self.assertEqual(config_name(config), "retrieval-qwen3-4b-semantic-limit2-dev")
+        config = {**config, "retrieval_only": False, "embedding": "bge-m3", "fusion": "rrf", "split": "test"}
+        self.assertEqual(config_name(config), "oneshot-rrf-limit2-test")
 
 
 class Scores(unittest.TestCase):
@@ -76,13 +142,22 @@ class Scores(unittest.TestCase):
         self.assertIsNone(first_rank(FUSED, {"glc-99999-000"}))
 
     def test_retrieval(self):
-        score = score_retrieval(ITEM, FUSED, KEPT)
+        score = score_retrieval(ITEM, FUSED, KEPT, LISTS)
         self.assertEqual((score["rank"], score["reciprocal_rank"], score["in_context"]), (2, 0.5, True))
-        missed = score_retrieval(ITEM, FUSED[:1], KEPT[:1])
+        missed = score_retrieval(ITEM, FUSED[:1], KEPT[:1], LISTS)
         self.assertEqual((missed["rank"], missed["reciprocal_rank"], missed["in_context"]), (None, 0.0, False))
 
+    def test_ranks_in_each_list_come_from_the_lists_not_the_final_order(self):
+        score = score_retrieval(ITEM, FUSED[:1], KEPT[:1], LISTS)
+        self.assertEqual((score["semantic_rank"], score["keyword_rank"]), (4, None))
+
+    def test_why_a_gold_chunk_was_removed(self):
+        removed = [{"id": "glc-00001-000", "reason": "near-duplicate"}, {"id": "glc-41850-005", "reason": "same document"}]
+        self.assertEqual(score_retrieval(ITEM, FUSED, KEPT[:1], LISTS, removed)["removed_as"], "same document")
+        self.assertIsNone(score_retrieval(ITEM, FUSED, KEPT, LISTS)["removed_as"])
+
     def test_no_gold_chunks_means_no_retrieval_score(self):
-        self.assertIsNone(score_retrieval({"gold_sources": []}, FUSED, KEPT))
+        self.assertIsNone(score_retrieval({"gold_sources": []}, FUSED, KEPT, LISTS))
 
     def test_answer(self):
         check = {"citations": [2], "ok": True, "refusal": False}
