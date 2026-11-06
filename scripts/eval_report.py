@@ -109,7 +109,7 @@ answers were written with qwen3, so we don't know whether answers would get bett
 (14 of 27), though not with the same questions. The top 50 differs by one question in its favour, and semantic's MRR by 0.02 against it.
 
 **The cost is high once and low after that.** Embedding all the chunks takes about 2.5 hours on this laptop instead of 5 minutes, \
-about 30 times slower, and the chunks added in Phase 5 would need the same treatment. A search takes about 0.15 s instead of 0.05 s, \
+about 30 times slower, and the chunks added in Phase 6 would need the same treatment. A search takes about 0.15 s instead of 0.05 s, \
 which nobody would notice next to the time the model takes to write.
 
 **Decision: the final baseline stays on bge-m3.** That's what the test run used, and this experiment gives no reason to redo it. The \

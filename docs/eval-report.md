@@ -178,7 +178,7 @@ The speed for qwen3 was measured on the last 5,516 chunks. The first 224 ran bef
 
 **The instruction makes no clear difference.** Semantic's top 8 is the same size with and without it (23 of 27), and so is hybrid's (14 of 27), though not with the same questions. The top 50 differs by one question in its favour, and semantic's MRR by 0.02 against it.
 
-**The cost is high once and low after that.** Embedding all the chunks takes about 2.5 hours on this laptop instead of 5 minutes, about 30 times slower, and the chunks added in Phase 5 would need the same treatment. A search takes about 0.15 s instead of 0.05 s, which nobody would notice next to the time the model takes to write.
+**The cost is high once and low after that.** Embedding all the chunks takes about 2.5 hours on this laptop instead of 5 minutes, about 30 times slower, and the chunks added in Phase 6 would need the same treatment. A search takes about 0.15 s instead of 0.05 s, which nobody would notice next to the time the model takes to write.
 
 **Decision: the final baseline stays on bge-m3.** That's what the test run used, and this experiment gives no reason to redo it. The qwen3 vectors stay in their own table, so this comparison can be repeated in seconds once the fusion is fixed in Phase 3. If semantic's lead holds up there, switching models becomes a real choice, and that one is for the project owner to make.
 

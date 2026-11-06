@@ -10,7 +10,7 @@ parts:
 - **Phase 2** measures all of that on a fixed set of questions with written-down answers.
 
 Phases 3A to 3C.1 follow, and they end with the agent as it is now. Phases 4A and 4B come after that: the final test runs, and Claude Haiku as an option. Phase 5 adds tracing, also as an option. To see what the agent does with one question, step by step, read
-[How a question is answered](how-a-question-is-answered.md).
+[How a question is answered](how-a-question-is-answered.md). For why each part is built the way it is, read [Decisions](decisions.md).
 
 A few words used below:
 
@@ -86,7 +86,7 @@ this pipeline.
   `ΠΡΟΣΤΑΣΙΑ ΠΡΟΣΩΠΩΝ ΕΙΔΙΚΩΝ ΚΑΤΗΓΟΡΙΩΝ`, subject
   `ΠΡΟΣΛΗΨΗ ΕΦΕΔΡΩΝ, ΑΝΑΠΗΡΩΝ ΠΟΛΕΜΟΥ, ΠΟΛΥΤΕΚΝΩΝ ΚΑΙ ΑΛΛΩΝ ΑΤΟΜΩΝ ΜΕ ΕΙΔΙΚΕΣ ΑΝΑΓΚΕΣ`.
 
-**Tests:** none, because it needs the 460 MB download. It checks itself instead: if the three folders
+**Tests:** none, because it needs the 440 MB download. It checks itself instead: if the three folders
 don't hold the same texts in the same order, it stops with an error.
 
 ### `labour_rag/normalize.py`: fix the characters
@@ -137,7 +137,7 @@ the list are never removed.
   - Before: `…εις την γενικήν συνδιάσκεΣελ.70(α) Τεύχος1294-Σελ.2 ψιν έκθεσιν…`
   - After: `…εις την γενικήν συνδιάσκεψιν έκθεσιν…`
 
-**Tests:** `tests/test_noise.py`, 10 tests. Among them: a full header in the middle of a sentence, a word
+**Tests:** `tests/test_noise.py`, 11 tests. Among them: a full header in the middle of a sentence, a word
 cut by a page break, cross-references that must stay (`ανωτ. σελ. 306,823`), unknown words that must
 stay, and a form whose heading is also a chapter name and must not be deleted.
 
@@ -218,7 +218,7 @@ The rules, in order:
   `Προοίμιο, Άρθρο 1, Άρθρα 13-19`, and the repeal sentence is saved in its own field.
 
 **Tests:** `tests/test_header_and_chunking.py`, the 4 `Rules` tests (window size and overlap, merging,
-moving a heading, numbered paragraphs after the decision formula) and the 2 `Records` tests (flags,
+moving a heading, numbered paragraphs after the decision formula) and the 3 `Records` tests (flags,
 repeal sentence and text to embed on two real documents).
 
 ### `labour_rag/__init__.py`
@@ -250,7 +250,7 @@ random chunks and the 5 worst cases) is the check a person reads.
 - **In:** the parquet files.
 - **Out:** `data/exploration/stats.json` and three sample texts.
 
-**Example:** before, nine parquet files of about 460 MB. After, for instance, this summary for labour
+**Example:** before, nine parquet files of about 440 MB. After, for instance, this summary for labour
 law in `stats.json`: 1,284 documents, 769,486 words, about 5,300 chunks (the Phase 0 estimate).
 
 **Tests:** none. It is a one-off measuring script. It keeps an older copy of the article pattern on
@@ -372,7 +372,7 @@ database and the model, so they are checked through the two reports instead.
   (it never overwrites one that holds verdicts).
 - **`scripts/eval_report.py`** compares the stored runs and adds my hand-written verdicts.
   `eval/results/` → `docs/eval-report.md`.
-- **`scripts/missing_laws.py`** makes the fetch list for Phase 5.
+- **`scripts/missing_laws.py`** makes the fetch list for Phase 6.
   the chunks + the other 46 volumes of the dataset → `docs/missing-laws.md`: every law mentioned but not in our data,
   most mentioned first, and the documents that are only a title.
 

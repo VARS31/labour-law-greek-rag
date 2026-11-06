@@ -1,33 +1,35 @@
 # labour-law-greek-rag
 
-## What this is
+A learning project that answers questions about Greek labour law from 1852 to 1999, using agentic RAG. It searches 1,284 laws, decrees and decisions, asks a judge which passages really apply, searches again if it has to, and writes an answer whose citations are checked in code. It runs on your machine by default, with Ollama and Postgres. Claude Haiku is an optional cloud model, chosen per run.
 
-A learning project that answers questions about Greek labour law from 1852-1999. It uses agentic RAG:
-it searches 1,284 laws, decrees and decisions, rewrites the question and searches again when the
-results are weak, and answers with citations. It's local by default, with Ollama. Claude Haiku is an optional cloud model
-for the judge and the writer, chosen per run. With Haiku, your question and the law chunks leave your machine.
+**This isn't legal advice.** The law texts stop in 1999. Greek labour law has changed a lot since then, and many of these acts were later amended or repealed. Don't use the answers for decisions about a real job or dispute.
+
+## Three ways to run it
+
+| Mode | Command | Complete answers, test / dev | Of all complete answers, with a claim their sources don't support | Wrong refusals | Median time per question, test / dev | Cost per question |
+|---|---|---:|---:|---:|---:|---:|
+| Local agent | `labour_rag.agent "…"` | 4 of 16 / 12 of 26 | 9 of 16 | 3 of 42 | 118 s / 141 s | none |
+| One-shot with Haiku | `labour_rag.ask "…" --haiku` | 10 of 16 / 15 of 26 | 7 of 25 | 4 of 42 | 10 s / 12 s | about $0.002 |
+| Agent with Haiku | `labour_rag.agent "…" --haiku` | 10 of 16 / 17 of 26 | 6 of 27 | 0 of 42 | 21 s / 20 s | about $0.004 to $0.005 |
+
+A complete answer has every key fact and none of them wrong, as read by two readers who couldn't see which system wrote it. The columns on unsupported claims and wrong refusals count test and dev together. The local one-shot, `labour_rag.ask "…"`, has 5 of 16 and 9 of 26 complete, at 49 s and 63 s. Times are from one laptop.
+
+For a demo, use the agent with Haiku. It has the most complete answers and no wrong refusals, and costs less than a cent a question. [Why](docs/decisions.md#haiku-as-judge-for-demos).
+
+**With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Without `--haiku`, nothing leaves your machine. Search, embeddings and the Query Enhancer stay local either way.
 
 ## Results
 
-Five systems answered the same questions with the same prompts: the baseline from Phase 2, one-shot v2 (the same steps with better search), the agent (search, judge, up to 3 rounds), and
-both of those with Claude Haiku as judge and writer in place of the local model. The dev questions were used while building the local systems. The test questions were kept aside, and each system ran on them once.
+Five systems answered the same questions with the same prompts. The dev questions were used while building the local systems. The test questions were kept aside, and each system ran on them once.
 
-| Dev | Baseline | One-shot v2 | Agent | One-shot Haiku | Agent Haiku |
-|---|---:|---:|---:|---:|---:|
-| **Complete answers, read by hand** | **6 of 26** | **9 of 26** | **12 of 26** | **15 of 26** | **17 of 26** |
-| Of those, with a claim their sources don't support | 6 | 6 | 7 | 5 | 3 |
-| Complete by the matcher alone | 9 of 26 | 12 of 26 | 16 of 26 | 16 of 26 | 18 of 26 |
-| Key facts found | 51% | 68% | 78% | 78% | 85% |
-| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 5 of 6 | 5 of 6 |
-| Wrong refusals | 2 of 26 | 0 of 26 | 1 of 26 | 3 of 26 | 0 of 26 |
-| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 22 of 27 | 25 of 27 |
-| Time per question (median) | 36 s | 63 s | 141 s | 12 s | 20 s |
-| Time for the whole run | 20 min | 33 min | 94 min | 6 min | 11 min |
-| Cost of the whole run | $0.00 | $0.00 | $0.00 | $0.08 | $0.13 |
-| Failures: search | 13 | 4 | 2 | 4 | 1 |
-| Failures: Judge | - | - | 1 | - | 1 |
-| Failures: Writer | 9 | 15 | 12 | 8 | 8 |
-| Failures: all | 22 | 19 | 15 | 12 | 10 |
+- **Haiku doubles the complete answers on test:** 10 of 16 on both Haiku systems, against 5 and 4 on the local ones. Its complete answers also say less that their sources don't support.
+- **With Haiku, the agent adds little to complete answers.** It's 10 against 10 on test and 17 against 15 on dev. What it adds is reach, and no wrong refusals where one-shot Haiku has 4.
+- **The judge needn't be Haiku for complete answers.** A dev-only test with a local judge and a Haiku writer also gets 17 of 26, so the writer brings the gain. But it's about 4 times slower.
+
+**Don't read too much into this.** Only 16 test questions can be answered, they've been read before, and the readers are Claude models judging a Claude model. [The final report](docs/final-report.md) has the full comparison and what it can't show.
+
+<details>
+<summary>All the numbers: five systems, test and dev</summary>
 
 | Test | Baseline | One-shot v2 | Agent | One-shot Haiku | Agent Haiku |
 |---|---:|---:|---:|---:|---:|
@@ -46,42 +48,28 @@ both of those with Claude Haiku as judge and writer in place of the local model.
 | Failures: Writer | 8 | 13 | 10 | 5 | 6 |
 | Failures: all | 13 | 14 | 13 | 6 | 6 |
 
-A complete answer has every key fact and none of them wrong, as read by two readers who couldn't see which system wrote it. On test, Haiku doubles the complete answers: 10 of 16 on both Haiku systems, against 5 and 4 on the local ones.
-Its complete answers also say less that their sources don't support. It's faster here, and a test run cost $0.04 and $0.09. With Haiku the agent adds little to complete answers, but has no wrong refusals where one-shot Haiku has 4.
-Don't read too much into this. Only 16 test questions can be answered, those questions have been read before, and the readers are Claude models judging a Claude model. The full comparison, and what it can't show, is in [docs/final-report.md](docs/final-report.md).
+| Dev | Baseline | One-shot v2 | Agent | One-shot Haiku | Agent Haiku |
+|---|---:|---:|---:|---:|---:|
+| **Complete answers, read by hand** | **6 of 26** | **9 of 26** | **12 of 26** | **15 of 26** | **17 of 26** |
+| Of those, with a claim their sources don't support | 6 | 6 | 7 | 5 | 3 |
+| Complete by the matcher alone | 9 of 26 | 12 of 26 | 16 of 26 | 16 of 26 | 18 of 26 |
+| Key facts found | 51% | 68% | 78% | 78% | 85% |
+| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 5 of 6 | 5 of 6 |
+| Wrong refusals | 2 of 26 | 0 of 26 | 1 of 26 | 3 of 26 | 0 of 26 |
+| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 22 of 27 | 25 of 27 |
+| Time per question (median) | 36 s | 63 s | 141 s | 12 s | 20 s |
+| Time for the whole run | 20 min | 33 min | 94 min | 6 min | 11 min |
+| Cost of the whole run | $0.00 | $0.00 | $0.00 | $0.08 | $0.13 |
+| Failures: search | 13 | 4 | 2 | 4 | 1 |
+| Failures: Judge | - | - | 1 | - | 1 |
+| Failures: Writer | 9 | 15 | 12 | 8 | 8 |
+| Failures: all | 22 | 19 | 15 | 12 | 10 |
 
-**With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Haiku is off by default and chosen per run. Search, embeddings and the Query Enhancer stay local either way. [docs/models.md](docs/models.md) has the details and the cost. To try it on one question, see [Running with Claude Haiku](#running-with-claude-haiku-optional).
+The baseline is the Phase 2 system. One-shot v2 is the same steps with better search. The agent searches, judges and takes up to 3 rounds.
 
-**Does the judge need to be Haiku?** A dev-only test, with a local judge and a Haiku writer, gets the same 17 of 26 complete answers as agent Haiku, so most of the gain comes from the writer. But it takes 58 minutes against 11, and wrongly refuses 2 questions where agent Haiku refuses none. See [the final report](docs/final-report.md#does-the-judge-need-to-be-haiku).
-
-## Status
-
-- [x] Phase 0: Explore the data. Findings are in [docs/data-exploration.md](docs/data-exploration.md).
-- [x] Phase 1A: Clean the labour-law texts and split them into chunks. Results are in [docs/chunking-report.md](docs/chunking-report.md).
-- [x] Phase 1B: Postgres + pgvector in Docker (port 5433, because Postgres.app already uses 5432), embeddings with a local Ollama model, and both semantic and accent-insensitive keyword search. Results are in [docs/search-report.md](docs/search-report.md).
-- [x] Phase 1C: One-shot baseline: search once, answer with citations, and check the citations in code. Results are in [docs/answer-report.md](docs/answer-report.md): none of the eight answers is fully right yet (four partly, four wrong), so the later phases have a clear baseline to beat.
-- [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
-- [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
-- [x] Phase 3B: The Query Enhancer: one model call that rewrites a question into searches in the words of the law. Results are in [docs/enhancer-report.md](docs/enhancer-report.md): it adds no right chunks, 22 of 27 dev questions with or without it, and takes about 7 seconds. This step also made qwen3-embedding:4b the default and stopped the repeat filter from hiding newer rules.
-- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 12 of 26 answers are complete against 9 for one-shot (corrected in Phases 4A and 4B, after reading the answers again), at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
-- [x] Phase 3C.1: Two fixes: searching stops once an approved chunk answers directly, and round 2 reads further down the plain question's list. Results are in [docs/agent-report.md](docs/agent-report.md): one real rescue (`single-09`), wrong refusals down from 2 to 1, no new complete answer, and no faster. The agent is now frozen for Phase 4. [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md) gives every rule in plain words and traces one question.
-- [x] Phase 4A: Final test runs: one-shot v2 and the frozen agent, one run each on the test questions, compared with the Phase 2 baseline. Results are in [docs/final-report.md](docs/final-report.md): the agent's lead on dev doesn't carry over, with 4 of 16 test answers complete against 5 and 5, and 16 questions can't settle it.
-- [x] Phase 4B: Claude Haiku as judge and writer, chosen per run, with a budget guard in code. Results are in [docs/final-report.md](docs/final-report.md): 10 of 16 test answers are complete on both Haiku systems, against 5 and 4 on the local ones, for $0.35 in all. [docs/models.md](docs/models.md) says which model does what, and what it costs.
-- [x] Phase 4B.1: `--haiku` on `ask` and `agent` for demos, with a key check before any search and a separate record of what demos cost. `agent-mixed`, a dev-only test with a local judge and a Haiku writer, shows the judge needn't be Haiku for complete answers, but it's about 4 times slower. See [docs/final-report.md](docs/final-report.md#does-the-judge-need-to-be-haiku).
-- [x] Phase 5: Observability with OpenTelemetry: one trace per question, a span per step, sent to Jaeger and Phoenix in the same run. It's off by default and doesn't touch the frozen code. See [docs/observability.md](docs/observability.md).
-- [ ] Phase 6 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
-
-Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
+</details>
 
 ## How it works
-
-All of it is built. There are two ways to answer: one-shot (`labour_rag.ask`), which searches once and answers, and
-the agent (`labour_rag.agent`), which is the diagram below. The agent searches the plain question first and uses the
-rewriter only when the judge asks for another try, because Phase 3B showed the rewriter adds little as a first step. Since
-Phase 3A answers use semantic search alone by default, because mixing it with keyword search lost more than it
-found (`--fusion rrf` brings back the old way). Since Phase 3B search uses qwen3-embedding:4b (`--embedding bge-m3`
-brings back the old model). To follow one question from start to finish, with every rule and a real example, read
-[docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md).
 
 ```
 BUILD THE INDEX (once)
@@ -89,14 +77,10 @@ BUILD THE INDEX (once)
   greek_legal_code, volume 41
         |
         v
-  explore the data ................ built     Phase 0
+  clean, chunk by article, add a header to each chunk
         |
         v
-  clean, chunk by article ......... built     Phase 1A
-        |
-        v
-  embed with Ollama,
-  store in Postgres + pgvector .... built     Phase 1B, 3B
+  embed with Ollama, store in Postgres + pgvector
 
 
 ANSWER A QUESTION
@@ -104,57 +88,73 @@ ANSWER A QUESTION
   question
         |
         v
-  search the plain question ....... built     Phase 1B, 3A
+  search the plain question
         |
         v
-  judge: which chunks fit,  ....... built     Phase 3C <------------+
-  and what next?                                                    |
-        |   search again, at most 3 rounds in all:                  |
-        |     further down the list (round 2 only),                 |
-        |     rewriter, laws it named, next articles .. built  3B, 3C
+  judge: which chunks fit, and what next? <-----------------+
+        |   search again, at most 3 rounds in all:          |
+        |     further down the list (round 2 only),         |
+        |     rewriter, laws it named, next articles -------+
         |   refuse: the code says so, and names the law if known
         |   answer: go on, also if the judge wants more but
-        |     an approved chunk answers directly ...... built  3C.1
+        |     an approved chunk answers directly
         v
-  answer from approved chunks,
-  with citations .................. built     Phase 1C, 3C
+  answer from approved chunks, with citations
         |
         v
-  citation check .................. built     Phase 1C
-
-
-MEASURE IT
-
-  52 test questions with expected answers and sources
-        |
-        v
-  run search and answer,
-  count what came out right ....... built     Phase 2
-        |
-        v
-  compare one-shot and agentic .... built     Phase 4A
-        |
-        v
-  the same with Haiku, optional ... built     Phase 4B
-
-
-SEE WHAT A QUESTION DID (optional)
-
-  a question through labour_rag.traced
-        |
-        v
-  one trace, a span per step ...... built     Phase 5
-        |
-        v
-  Jaeger and Phoenix, over OTLP ... built     Phase 5
+  citation check
 ```
 
-The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
-Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2 and the agent on the same questions, and Phase 4B added both of those with Haiku as judge and writer. One question chooses Haiku with `--haiku`, and a measuring run with `--system oneshot-haiku` or `--system agent-haiku`. Search, embeddings and the Query Enhancer stay local either way.
+The one-shot (`labour_rag.ask`) skips the judge: it searches once and answers. To follow one question from start to finish, with every rule and a real example, read [How a question is answered](docs/how-a-question-is-answered.md).
+
+## How to run it
+
+You need Python 3.11, curl, about 11 GB of free disk space, most of it the three models, [Docker Desktop](https://www.docker.com/products/docker-desktop/) and [Ollama](https://ollama.com). Run these from the repository root:
+
+```bash
+# 1. Packages
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 2. The dataset, about 440 MB
+base=https://huggingface.co/datasets/AI-team-UoA/greek_legal_code/resolve/main
+for c in volume chapter subject; do
+  mkdir -p data/raw/greek_legal_code/$c
+  for s in train validation test; do
+    curl -sSL --fail -o data/raw/greek_legal_code/$c/$s.parquet "$base/$c/$s-00000-of-00001.parquet"
+  done
+done
+
+# 3. Clean and chunk it, in a few seconds
+.venv/bin/python -I scripts/build_chunks.py
+
+# 4. The database. Set POSTGRES_PASSWORD in .env after copying it
+cp .env.example .env
+docker compose up -d
+
+# 5. The models and the embeddings. The last line takes about 2.5 hours, and you can stop it and start it again
+ollama pull bge-m3
+ollama pull qwen3-embedding:4b
+ollama pull ministral-3:8b
+.venv/bin/python -m labour_rag.load
+.venv/bin/python -m labour_rag.embeddings
+
+# 6. Ask
+.venv/bin/python -m labour_rag.ask "Πόσες ημέρες κανονική άδεια δικαιούται ο μισθωτός;"
+.venv/bin/python -m labour_rag.agent "Πόσες ημέρες κανονική άδεια δικαιούται ο μισθωτός;" --trace
+```
+
+To skip the long embedding step, leave out `labour_rag.embeddings` and add `--embedding bge-m3` to `ask` or `agent`.
+
+**With Haiku:** put your key in `.env` as `ANTHROPIC_API_KEY` and add `--haiku`. The key is checked before any search, at no cost. The command says at the start what leaves your machine, and at the end what the question cost.
+
+**Tests:** `.venv/bin/python -m unittest discover -s tests -t .`
+
+[Setup, commands and layout](docs/setup.md) has every step, the everyday commands, how to measure, and what each file is for.
 
 ## Seeing what a question did
 
-With tracing on, every question becomes a trace: a tree of timed steps you can open in a viewer. It shows where the time, the tokens and the money went, and why the agent searched again. Tracing is off by default, the viewers start only when you ask, and the frozen code doesn't change. This is for learning and demos, not for measuring.
+With tracing on, every question becomes a trace: a tree of timed steps you can open in a viewer. It shows where the time, the tokens and the money went, and why the agent searched again. Tracing is off by default, and the viewers start only when you ask. The same trace goes to Jaeger and Phoenix, over OTLP, OpenTelemetry's standard protocol.
 
 ![One question in Jaeger: a bar per step, with the model next to each](docs/images/trace-jaeger.png)
 
@@ -166,277 +166,64 @@ docker compose --profile observability up -d     # start the viewers: about 370 
 .venv/bin/python -m labour_rag.traced agent "Πόσες μέρες άδεια δικαιούμαι;" --trace
 ```
 
-It prints the answer as usual, then a link to the trace in [Jaeger](http://127.0.0.1:16686) and in [Phoenix](http://127.0.0.1:6006). The same trace goes to both, over OTLP, OpenTelemetry's standard protocol. If the viewers aren't running, you still get the answer, with one warning. The plain commands, such as `python -m labour_rag.agent`, never trace, because they run only frozen code.
+It prints the answer as usual, then a link to the trace in each viewer. If the viewers aren't running, you still get the answer, with one warning. The plain commands, such as `python -m labour_rag.agent`, never trace, on purpose: they run only the frozen code that was measured.
 
-**Prompts and chunks are recorded in the traces, on your machine.** That's fine here because they're public law texts. In a company setting you'd leave them out by default. The API key and the contents of `.env` are never recorded. [docs/observability.md](docs/observability.md) says what to look at and which questions it answers.
+**Prompts and chunks are recorded in the traces, on your machine.** That's fine here because they're public law texts. In a company setting you'd leave them out by default. The API key and the contents of `.env` are never recorded. [Observability](docs/observability.md) says what to look at and which questions it answers.
 
-## Project layout
+## Limitations
 
-| Path | What it is for |
+- **Old law only.** The newest text is from 1999, and expected answers follow this data, not today's law.
+- **Laws are missing.** The chunks mention 700 laws and decrees that aren't documents in our data, among them Ν. 435/1976 on overtime pay, and 468 documents hold only a title. [The list](docs/missing-laws.md).
+- **Volume 41 only.** Related rules in other volumes are left out, such as seafarers' contracts, unemployment benefits and civil servants.
+- **Messy text.** It comes from a printed collection: no line breaks, page headers in mid-sentence, and only 445 of the 1,284 documents divided into articles. [Details](docs/data-exploration.md).
+- **Few test questions, and no human reader.** Only 16 test questions can be answered, so only a large gap between systems means much. Those questions have been read before. The readers are Claude models, and Haiku is one too.
+- **A complete answer isn't always a safe one.** 17 of the 34 test answers that pass a hand read still say something else their source doesn't support. Check the source.
+- **The judge and the writer can be wrong.** The judge can reject the right chunk or approve a wrong one, and the writer can misread what it was given. The local agent takes about 2 minutes a question, most of it the judge.
+- **Haiku doesn't tell υπερεργασία from υπερωρία,** and neither does the local model. Haiku's runs also aren't exactly repeatable: it takes no temperature or seed.
+
+## Read more
+
+| | |
 |---|---|
-| `README.md` | This file. |
-| `CLAUDE.md` | Project notes and working rules for Claude Code. |
-| `LICENSE` | MIT licence for the code in this repository. |
-| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres), LangGraph (the agent loop), the Anthropic SDK (the optional Haiku systems) and OpenTelemetry (the optional tracing), plus everything those bring along. |
-| `docker-compose.yml` | Postgres 17 with pgvector, on port 5433, and two trace viewers, Jaeger and Phoenix, that start only when asked. |
-| `.env.example` | Template for `.env`: database password, ports, the Ollama model names and settings, the optional Haiku key, and the tracing switch. |
-| `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
-| `prompts/` | The instructions for the answering model (`answer.md`), the note every answer ends with (`closing_note.md`), and the instructions for the Query Enhancer (`enhancer.md`) and the judge (`judge.md`). Edit them freely. |
-| `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
-| `docs/chunking-report.md` | Phase 1A results: how the chunks were made, how many there are, real examples. |
-| `docs/search-report.md` | Phase 1B results: database size, search speed, and three search methods compared on eight questions. |
-| `docs/answer-report.md` | Phase 1C results: the answers to the same eight questions, their sources and citation checks, with an assessment of each. |
-| `docs/eval-report.md` | Phase 2 results: what the test set contains, the numbers per experiment and category, and the most instructive failures. |
-| `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
-| `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
-| `docs/agent-report.md` | Phase 3C and 3C.1 results: the agent against one-shot, what the extra rounds did, what the two fixes changed, three traced examples and the most instructive failures. |
-| `docs/final-report.md` | Phase 4A and 4B results: the five systems on dev and test side by side, claims their sources don't support, the overtime question, cost and time per run, failures by step, and how little 20 questions can show. |
-| `docs/observability.md` | Tracing: what it is, how to start it, what to look at in each viewer, and which questions it answers. Its pictures are in `docs/images/`. |
-| `docs/models.md` | Which model does what, where it runs and what it costs, with Haiku's settings and the budget guard. |
-| `docs/how-a-question-is-answered.md` | How the final agent answers a question, for someone who doesn't read code: every rule, and one real question traced from start to finish. |
-| `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 6, which that file still calls Phase 5. |
-| `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
-| `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`), which system has used its one test run (`test_runs.json`), the blind readers' verdicts (`hand_read.json`) and what the measuring runs with Haiku have cost (`haiku_spend.json`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client, its budget guard, the key check and the `--haiku` runs (4B). The optional tracing and its command, `traced` (5). |
-| `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
-| `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
-| `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
-| `scripts/answer_report.py` | Answers the eight example questions and writes the answer report. |
-| `scripts/check_eval_set.py` | Checks the test set against the chunks and writes the review file. |
-| `scripts/eval_report.py` | Compares the stored runs and writes the evaluation report. |
-| `scripts/retrieval_report.py` | Writes the retrieval report from the stored fusion runs. |
-| `scripts/enhancer_report.py` | Runs the enhancer measurements and writes the enhancer report. |
-| `scripts/agent_report.py` | Compares the stored agent and one-shot runs and writes the agent report. |
-| `scripts/final_report.py` | Compares the five systems from their stored runs and the hand-read verdicts, and writes the final report. |
-| `scripts/check_enhancer_prompt.py` | Checks that the examples in the enhancer's prompt are on topics that aren't in the test set. |
-| `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
-| `tests/` | Unit tests, using real examples from the data. |
-| `.claude/settings.json` | Claude Code settings for this project. |
-| `data/` | The downloaded dataset, script output, the chunks file `data/processed/labour_chunks.jsonl` and the record of manual Haiku runs. Created during setup, not in git. |
-| `.venv/` | Local Python environment. Created during setup, not in git. |
-| `.env` | Your local settings with the database password. Created during setup, not in git. |
+| [Decisions](docs/decisions.md) | Every architecture decision: why, the evidence and the alternatives |
+| [Lessons learned](docs/lessons-learned.md) | What this project taught, technical and process |
+| [Backlog](docs/backlog.md) | Open questions and future work, in one list |
+| [Final report](docs/final-report.md) | All the systems side by side, and how little this can show |
+| [How a question is answered](docs/how-a-question-is-answered.md) | Every rule in plain words, with one question traced |
+| [Models](docs/models.md) | Which model does what, and what it costs |
+| [Observability](docs/observability.md) | Traces: what to look at, and which questions they answer |
+| [Setup, commands and layout](docs/setup.md) | Every step, every command, every file |
+| [Code tour](docs/code-tour.md) | The code, for people who don't read Python |
+| [Project journal](docs/project-journal.md) | Phase by phase, as it happened |
 
-## Setup and running
+This was built with Claude Code. In the reports, "I" is Claude Code and "the owner" is the person who ran the project. In the journal, "I" is the owner.
 
-You need Python 3.11 (other recent versions will probably work), curl, about 2 GB of free disk space,
-[Docker Desktop](https://www.docker.com/products/docker-desktop/) and [Ollama](https://ollama.com). You
-don't need a local Postgres: the database runs in Docker.
+## Status
 
-Run every command below from the repository root, the folder that contains this README.
-
-1. Create the Python environment and install the packages:
-
-   ```bash
-   python3 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   ```
-
-2. Download the dataset into `data/`:
-
-   ```bash
-   base=https://huggingface.co/datasets/AI-team-UoA/greek_legal_code/resolve/main
-   for c in volume chapter subject; do
-     mkdir -p data/raw/greek_legal_code/$c
-     for s in train validation test; do
-       curl -sSL --fail -o data/raw/greek_legal_code/$c/$s.parquet "$base/$c/$s-00000-of-00001.parquet"
-     done
-   done
-   ```
-
-   This fetches about 460 MB. The files hold all 47 volumes and there is no smaller download for one
-   volume, so the code picks out volume 41 itself.
-
-3. Run the data exploration:
-
-   ```bash
-   .venv/bin/python -I scripts/explore_data.py
-   ```
-
-   It takes about a minute and writes `data/exploration/stats.json` plus three sample texts. It looks at
-   all 47 volumes, so that the labour volume can be compared with the rest. The `-I` flag runs Python
-   in isolated mode, a small precaution when reading downloaded files. This step is optional.
-
-4. Clean and chunk the labour-law volume:
-
-   ```bash
-   .venv/bin/python -I scripts/build_chunks.py
-   ```
-
-   It takes a few seconds. It writes `data/processed/labour_chunks.jsonl` (one chunk per line),
-   `data/processed/running_titles.json` (the page titles it learned to remove) and
-   `docs/chunking-report.md`.
-
-5. Start the database. First create `.env` from the template and choose a password:
-
-   ```bash
-   cp .env.example .env        # then edit POSTGRES_PASSWORD in .env
-   docker compose up -d        # starts Postgres + pgvector on port 5433
-   docker compose ps           # wait until the status says "healthy"
-   ```
-
-   If your shell says `docker: command not found` although Docker Desktop is running, add its command-line
-   tools to your path first: `export PATH="$HOME/.docker/bin:$PATH"`.
-
-   Other useful commands: `docker compose stop` stops the database and keeps the data;
-   `docker compose down -v` deletes the database and all its data.
-
-6. Get the embedding models and load the chunks:
-
-   ```bash
-   ollama pull bge-m3
-   ollama pull qwen3-embedding:4b
-   .venv/bin/python -m labour_rag.load
-   .venv/bin/python -m labour_rag.embeddings
-   ```
-
-   `load` creates the tables (`sql/`), stores every chunk and embeds it with bge-m3. It shows its progress.
-   Embedding the 5,740 chunks took about 5 minutes on an Apple M5. `embeddings` embeds them again with
-   qwen3-embedding:4b, the model search uses by default, and that takes about 2.5 hours. You can stop it and start
-   it again. Running either again is safe and takes a few seconds: they only embed chunks that are new or changed.
-   To try things out without the long wait, add `--embedding bge-m3` to `ask` and `evaluate`.
-
-7. Search:
-
-   ```bash
-   .venv/bin/python -m labour_rag.search "κανονική άδεια εργαζομένων"
-   ```
-
-   It prints the top 10 of semantic, keyword and hybrid search side by side. To measure everything again
-   and rewrite `docs/search-report.md`, run `.venv/bin/python scripts/search_report.py`.
-
-8. Ask a question:
-
-   ```bash
-   ollama pull ministral-3:8b
-   .venv/bin/python -m labour_rag.ask "Πόσες ημέρες κανονική άδεια δικαιούται ο μισθωτός;"
-   ```
-
-   An answer takes about a minute. It prints the answer, its sources, the result of the citation check and the time of each step. Add
-   `--show-chunks` to see exactly what the model received. The model's instructions are in
-   `prompts/answer.md`. To answer the eight example questions again and rewrite `docs/answer-report.md`,
-   run `.venv/bin/python scripts/answer_report.py`.
-
-9. Run the tests:
-
-   ```bash
-   .venv/bin/python -m unittest discover -s tests -t .
-   ```
-
-10. Measure it on the test questions:
-
-    ```bash
-    .venv/bin/python -m labour_rag.evaluate --split dev
-    ```
-
-    This takes about half an hour, because the model answers 32 questions. Add `--retrieval-only` to measure search
-    alone, in seconds. Results go to `eval/results/`, and a run that stops halfway continues where it left off. The 20
-    questions of the test split are for one final measurement per system, so a second run by the same system is
-    refused. `eval/test_runs.json` records who has used it.
-
-### Running with Claude Haiku (optional)
-
-Everything above works without it. **With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Search, embeddings and the Query Enhancer stay local, so Docker and Ollama still have to be running.
-
-Put your key in `.env` as `ANTHROPIC_API_KEY`. Then add `--haiku` to one question:
-
-```bash
-.venv/bin/python -m labour_rag.ask "Πόσες μέρες άδεια δικαιούμαι;" --haiku             # Haiku writes the answer
-.venv/bin/python -m labour_rag.agent "Πόσες μέρες άδεια δικαιούμαι;" --haiku --trace   # Haiku is the judge and the writer
-```
-
-It says at the start what leaves your machine, and at the end what the question cost, which is usually under a cent. The key is checked before any search, at no cost. If it's missing or rejected, the command stops and says so.
-
-These runs count in `data/haiku_manual_spend.json`, with a $2 limit. That folder is gitignored, so they don't show up as git changes. Without `--haiku`, nothing changes and nothing leaves your machine. [docs/models.md](docs/models.md) has the details and the cost.
-
-## Everyday commands
-
-Once everything is set up, these are the commands you need day to day. Run them from the repository root.
-If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
-
-| What | Command |
-|---|---|
-| Start the database | `docker compose up -d` |
-| Is it running? | `docker compose ps` (look for "healthy") |
-| Stop the database (keeps the data) | `docker compose stop` |
-| Is Ollama running, and are the models there? | `ollama list` (needs `qwen3-embedding:4b`, `bge-m3` and `ministral-3:8b`) |
-| Which models are loaded right now? | `ollama ps` |
-| Load or refresh the chunks in the database | `.venv/bin/python -m labour_rag.load`, then `.venv/bin/python -m labour_rag.embeddings` |
-| Search | `.venv/bin/python -m labour_rag.search "your question"` |
-| Ask | `.venv/bin/python -m labour_rag.ask "your question"` (add `--show-chunks` to see the sources in full, `--fusion rrf` for the old way of searching) |
-| Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone, `--fusion rrf` for another way of combining the lists) |
-| Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
-| Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
-| Start the trace viewers | `docker compose --profile observability up -d` |
-| Ask with a trace (with `TRACING=on` in `.env`) | `.venv/bin/python -m labour_rag.traced agent "your question" --trace` (or `ask`, or `evaluate`, and add `--haiku` as usual) |
-| Stop the trace viewers | `docker compose --profile observability stop jaeger phoenix` |
-| Rewrite the final report from the stored runs | `.venv/bin/python -I scripts/final_report.py` |
-| Ask with Haiku (the question and chunks leave your machine) | `.venv/bin/python -m labour_rag.ask "your question" --haiku` |
-| Ask through the agent with Haiku | `.venv/bin/python -m labour_rag.agent "your question" --haiku --trace` |
-| Measure with Haiku on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku` (or `oneshot-haiku`). The question and the law chunks leave your machine |
-| See what the Query Enhancer makes of a question | `.venv/bin/python -m labour_rag.enhancer "your question" --search` |
-| Measure the enhancer and rewrite its report | `.venv/bin/python -I scripts/enhancer_report.py --run` |
-| Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
-| Run the tests | `.venv/bin/python -m unittest discover -s tests -t .` |
-
-If the database or Ollama isn't running, `search` and `ask` stop with an error saying which one they can't
-reach.
+- [x] Phase 0: explore the data. [Report](docs/data-exploration.md).
+- [x] Phase 1A: clean and chunk. [Report](docs/chunking-report.md).
+- [x] Phase 1B: Postgres + pgvector in Docker, embeddings, semantic and accent-insensitive keyword search. [Report](docs/search-report.md).
+- [x] Phase 1C: one-shot baseline, with citations checked in code. [Report](docs/answer-report.md).
+- [x] Phase 2: evaluation set of 52 questions, and metrics. [Report](docs/eval-report.md).
+- [x] Phase 3A: fix the fusion step. [Report](docs/retrieval-report.md).
+- [x] Phase 3B: Query Enhancer, qwen3 as the default embedding, repeat filter fixed. [Report](docs/enhancer-report.md).
+- [x] Phase 3C: the agent loop with LangGraph. [Report](docs/agent-report.md).
+- [x] Phase 3C.1: two fixes, then the agent is frozen. [Report](docs/agent-report.md).
+- [x] Phase 4A: final test runs, compared with the baseline. [Report](docs/final-report.md).
+- [x] Phase 4B: Claude Haiku as judge and writer, with a budget guard. [Report](docs/final-report.md).
+- [x] Phase 4B.1: `--haiku` for demos, a key check, and `agent-mixed` as a dev-only test. [Report](docs/final-report.md#does-the-judge-need-to-be-haiku).
+- [x] Phase 5: observability with OpenTelemetry. [Guide](docs/observability.md).
+- [x] Wrap-up: decisions, lessons, backlog, and a check for publishing.
+- [ ] Phase 6 (later): a modern layer with Π.Δ. 80/2022, labelled by period. See the [backlog](docs/backlog.md).
 
 ## Data and credits
 
-**Dataset.** The law texts come from the Greek Legal Code (GLC) dataset,
-[AI-team-UoA/greek_legal_code](https://huggingface.co/datasets/AI-team-UoA/greek_legal_code) on Hugging
-Face. Papaloukas et al. built it from the "Permanent Greek Legislation Code - Raptarchis" catalogue.
-The dataset keeps its own licence, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The MIT
-licence in this repository covers only the code. The data is not copied into this repository: you
-download it yourself in step 2. Any cleaning or chunking we do changes the original text, and that is
-documented in `docs/`.
+**Dataset.** The law texts come from the Greek Legal Code (GLC) dataset, [AI-team-UoA/greek_legal_code](https://huggingface.co/datasets/AI-team-UoA/greek_legal_code) on Hugging Face. Papaloukas et al. built it from the "Permanent Greek Legislation Code - Raptarchis" catalogue. It keeps its own licence, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-> Christos Papaloukas, Ilias Chalkidis, Konstantinos Athinaios, Despina-Athanasia Pantazi and Manolis
-> Koubarakis. *Multi-granular Legal Topic Classification on Greek Legislation.* Proceedings of the
-> Natural Legal Language Processing Workshop 2021. <https://arxiv.org/abs/2109.15298>
+The full dataset isn't in this repository: you download it in step 2. Excerpts of the law texts are, in `docs/` and `eval/`, under that same licence. Our cleaning and chunking change the original text, and [the chunking report](docs/chunking-report.md) documents how.
 
-**Inspiration.** [TeoMastro/GreekLegislationRag](https://github.com/TeoMastro/GreekLegislationRag)
-(GPLv3) gave us the idea. No code was copied from it.
+> Christos Papaloukas, Ilias Chalkidis, Konstantinos Athinaios, Despina-Athanasia Pantazi and Manolis Koubarakis. *Multi-granular Legal Topic Classification on Greek Legislation.* Proceedings of the Natural Legal Language Processing Workshop 2021. <https://arxiv.org/abs/2109.15298>
 
-**Please read this.** The law texts stop in 1999. Greek labour law has changed a lot since then, and many
-of these acts were later amended or repealed. This is a learning project. It is not legal advice, and its
-answers should not be used for decisions about a real job or employment dispute.
+**Code.** MIT, see [LICENSE](LICENSE). It covers only the code.
 
-## Known limitations
-
-Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
-
-- **Old law only.** The newest labour text is from 1999.
-- **Many documents are thin.** Only 445 of the 1,284 labour documents are divided into articles. Many
-  of the rest are a header and a short note, such as "this act was repealed".
-- **Laws are missing.** The chunks mention 700 laws and decrees that aren't documents in our data, among
-  them Ν. 435/1976 on overtime pay, and 468 documents hold only a title. The list is in
-  [docs/missing-laws.md](docs/missing-laws.md).
-- **Messy text.** It was converted from the Word files of a printed collection. There are no line
-  breaks, page headers sit in the middle of sentences, and articles are sometimes out of order.
-- **Look-alike characters.** Some Greek words contain Latin letters (`τoυ` with a Latin `o`), and some
-  texts use the micro sign `µ` instead of the Greek `μ`. These have to be fixed before searching.
-- **Old and new Greek mixed.** Katharevousa and demotic appear side by side, and accents are often
-  missing, so keyword search has to ignore accents.
-- **Volume 41 only.** Related rules in other volumes are left out, for example seafarers' contracts
-  (merchant shipping), unemployment benefits (social insurance) and civil servants. The main decree on
-  safety at building sites (Π.Δ. 1073/1981) is also in another volume.
-- **Everyday words versus legal words.** Search can miss a law that uses different words from the
-  question: "οικοδομές" doesn't find the act on "εργοτάξια". Some acts are only a header without their
-  text. Near-identical clauses (from ILO conventions, or decisions repeated every year) can fill a result
-  list. Details are in [docs/search-report.md](docs/search-report.md).
-- **Old and new rules can reach the model together.** Chunks that state different numbers are never treated as
-  repeats, so a question on maternity leave can get 14, 15 and 16 weeks at once. Nothing yet tells the model to
-  prefer the newest. See [docs/enhancer-report.md](docs/enhancer-report.md).
-- **The Query Enhancer's katharevousa is often not real Greek,** and it can't find a word of the law it doesn't
-  know. Only the agent's second try uses it.
-- **The agent is slow, and the judge can be wrong.** A question takes about 2 minutes, most of it the judge. It can
-  reject the right chunk or call a wrong one relevant, and that can end the search. The writer can still misread a
-  chunk it was given, or add something no chunk says. See [docs/agent-report.md](docs/agent-report.md).
-- **Few test questions, and a complete answer isn't always a safe one.** Only 16 test questions can be answered, so only a
-  large gap between systems means much, and those questions have been read before. The readers are Claude models, and
-  Haiku is one too. And 17 of the 34 test answers that pass a hand read still say something else their source doesn't
-  support. See [docs/final-report.md](docs/final-report.md).
-- **Haiku doesn't tell υπερεργασία from υπερωρία.** It gives the rate for one as the answer to a question about the other,
-  as the local model does. Its runs also aren't exactly repeatable: it takes no temperature or seed.
+**Inspiration.** [TeoMastro/GreekLegislationRag](https://github.com/TeoMastro/GreekLegislationRag) (GPLv3) gave us the idea. No code was copied from it.

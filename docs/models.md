@@ -27,7 +27,7 @@ Which model does what, where it runs and what it costs. The project is local by 
 | `agent-haiku`, test | 20 | 44 | 413,650 | 100,863 | $0.0918 | 8.0 min |
 | `agent-mixed`, dev (local Judge) | 32 | 27 | 160,138 | 74,652 | $0.0533 | 57.7 min |
 
-With a tiny key check and three trial questions, all the measuring came to $0.41. The running total is in [`eval/haiku_spend.json`](../eval/haiku_spend.json). That covers the calls to Haiku, not the work of reading the answers. One question with `--haiku` costs about $0.003 on `ask` and $0.005 on `agent`.
+With a tiny key check and three trial questions, all the measuring came to $0.41. The running total is in [`eval/haiku_spend.json`](../eval/haiku_spend.json). That covers the calls to Haiku, not the work of reading the answers. One question with Haiku costs about $0.002 on the one-shot and $0.004 to $0.005 on the agent, by the runs above.
 
 **Settings.** No temperature and no seed, because the API takes neither. Thinking stays at the model's default effort. Output is capped at 16,000 tokens, which leaves room for the thinking; a call that reaches the cap stops the run. No caching. Nothing was tuned, so its runs aren't exactly repeatable, and it isn't "only the model that changes".
 
@@ -39,7 +39,7 @@ With a tiny key check and three trial questions, all the measuring came to $0.41
 .venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku                # a measuring run
 ```
 
-Each says at the start what leaves your machine, and `--haiku` says at the end what the question cost. Without the flag, nothing changes and nothing leaves your machine.
+With `--haiku`, the command says at the start what leaves your machine and at the end what the question cost. A measuring run with `--system` doesn't say so: there, choosing the system is the choice to send. Without either, nothing changes and nothing leaves your machine.
 
 **The key.** Every Haiku run checks it before any search, with a call that uses no tokens, so the check is free. If it's missing or rejected, the run stops with a message naming `ANTHROPIC_API_KEY`, and leaves no result folder. The key is read only to hand to the SDK. It's never printed, logged or stored.
 

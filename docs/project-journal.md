@@ -21,6 +21,7 @@ Phase 4A  Final test runs, three systems side by side .. done   test: agent 4 of
 Phase 4B  Claude Haiku as Judge and Writer, budget guard . done   test: 10 of 16 complete on both, vs 5 and 4 local, $0.35 in all
 Phase 4B.1 --haiku for demos, key check, agent-mixed ...... done   dev: local Judge + Haiku Writer 17 of 26, same as agent Haiku, 58 min vs 11
 Phase 5   Observability with OpenTelemetry ............. done   one trace per question, in Jaeger and Phoenix, off by default
+Wrap-up   Decisions, lessons, backlog, publishing check .. done   numbers checked, nothing to hide, ready to push
 Phase 6   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
 
@@ -28,20 +29,22 @@ Phase 6   Modern layer (Π.Δ. 80/2022 + missing laws)
 
 ```
 BUILD THE LIBRARY (once)
-  Hugging Face parquet → build_chunks (clean + cut) → labour_chunks.jsonl → load (bge-m3 → numbers) → Postgres in Docker
+  Hugging Face parquet → build_chunks (clean + cut) → labour_chunks.jsonl → load + embeddings (qwen3 → numbers) → Postgres in Docker
 
 ANSWER A QUESTION (every time)
-  question → clean → search (semantic / keyword / hybrid) → top chunks → writer (ministral) → citation check
-  later:  Query Enhancer → search → Judge (max 3 rounds) → Writer → citation check
+  one-shot:  question → clean → semantic search → 8 chunks → Writer → citation check
+  agent:     question → clean → search → Judge (max 3 rounds, Query Enhancer from round 2) → Writer → citation check
 ```
 
 **Who does what**
 
 | Part | Tool | AI? |
 |---|---|---|
-| Text → numbers (chunks once, each question) | bge-m3 via Ollama | yes, numbers only |
+| Text → numbers (chunks once, each question) | qwen3-embedding:4b via Ollama (bge-m3 selectable) | yes, numbers only |
 | Find nearest chunks | Postgres + pgvector | no, maths |
-| Write the answer | ministral-3:8b via Ollama | yes |
+| Rewrite the question, on the second try | ministral-3:8b via Ollama | yes |
+| Judge the chunks, write the answer | ministral-3:8b via Ollama, or Claude Haiku if chosen | yes |
+| Check the citations | Python | no |
 | Database | Postgres 17 + pgvector in Docker, port 5433 | no |
 
 ---
@@ -82,10 +85,10 @@ ANSWER A QUESTION (every time)
 
 **Goal:** store chunks with vectors in Postgres (Docker) and search three ways.
 
-**Numbers:** embedding 5,740 chunks took 5.2 minutes. Database 112 MB. Search: 15 ms without index, 1.6 ms with HNSW, same results.
+**Numbers:** embedding 5,740 chunks took 5.2 minutes. Database 112 MB. Search: 16 ms without index, 1.7 ms with HNSW, same results.
 
 **Findings**
-- Semantic search best on 5 of 8 questions; hybrid put the main law at #1 in 7 of 8.
+- Semantic search best on 4 of 8 questions; hybrid put the main law at #1 in 7 of 8.
 - Keyword search is fooled by ambiguous words ("αποζημίωση" also means travel allowance).
 - **One word decides success:** "οικοδομές" never finds Π.Δ. 305/1996, "εργοτάξια" finds it at #1 → the Query Enhancer's job.
 - Near-duplicates (ILO conventions, yearly bonus decisions) crowd the top 10.
@@ -98,7 +101,7 @@ ANSWER A QUESTION (every time)
 
 **Goal:** search once, answer once, check citations in code. The baseline for later comparisons.
 
-**Result:** 0 of 8 fully correct (4 partly, 4 wrong). About 30–70 seconds per answer.
+**Result:** 0 of 8 fully correct (4 partly, 4 wrong). About 45–70 seconds per answer.
 
 **Failure types**
 
@@ -132,7 +135,7 @@ ANSWER A QUESTION (every time)
 
 **Decisions:** answers follow **our data**, not today's law; questions use everyday words; dev/test split (never tune on test); "not answerable" items count as correct when the answer says "not found" and names where the rule would be.
 
-**Next:** metrics script → baseline numbers → experiments (per-document limit 4; bge-m3 vs qwen3-embedding) → eval report. Plus a "missing laws" inventory for Phase 5.
+**Next:** metrics script → baseline numbers → experiments (per-document limit 4; bge-m3 vs qwen3-embedding) → eval report. Plus a "missing laws" inventory for Phase 6.
 
 ---
 
@@ -140,7 +143,7 @@ ANSWER A QUESTION (every time)
 
 **Goal:** measure the one-shot baseline on the test set, so later phases have numbers to beat.
 
-**What we did:** metrics script with results stored per run in `eval/results/` → key facts matched without a model (agrees with a hand check on 68 of 71) → dev baseline → limit 4 → bge-m3 vs qwen3-embedding, retrieval only → one test run → [eval-report.md](eval-report.md). Plus the fetch list for Phase 5: [missing-laws.md](missing-laws.md).
+**What we did:** metrics script with results stored per run in `eval/results/` → key facts matched without a model (agrees with a hand check on 68 of 71) → dev baseline → limit 4 → bge-m3 vs qwen3-embedding, retrieval only → one test run → [eval-report.md](eval-report.md). Plus the fetch list for Phase 6: [missing-laws.md](missing-laws.md).
 
 **Numbers**
 
@@ -160,6 +163,8 @@ ANSWER A QUESTION (every time)
 | Semantic alone: right chunk in its top 8 | 20 of 27 | 23 of 27 |
 | Hybrid: right chunk among the 8 | 13 of 27 | 14 of 27 |
 | Embedding all chunks | 5 minutes | about 2.5 hours |
+
+*Phase 3A later widened refusal detection: wrong refusals became 2, 1 and 2, the citation check 11 of 26 at limit 2, and the citation finding below 4 of 11 against 5 of 15.*
 
 Missing laws: 2,716 mentions point to 700 laws we don't have, 274 of them in other volumes of the dataset. 468 documents are only a title.
 
@@ -256,7 +261,7 @@ Repeat filter: `single-15` on bge-m3 arrives again (17 → 18). On qwen3 no righ
 
 **Goal:** join search, Judge and writer into an agent with LangGraph, and measure it with full answers against the one-shot.
 
-**What we did:** LangGraph 1.2.20 installed, 37 packages pinned, tracing off → Judge in `prompts/judge.md`: a verdict per chunk, then answer, search again or refuse → round 2 uses the enhancer, laws the Judge named and next articles → writer sees only approved chunks and my original question → refusals and "law not in our data" written by the code → `--trace` → full dev run → [agent-report.md](agent-report.md).
+**What we did:** LangGraph 1.2.20 installed with the 37 packages it brings, all pinned, tracing off → Judge in `prompts/judge.md`: a verdict per chunk, then answer, search again or refuse → round 2 uses the enhancer, laws the Judge named and next articles → writer sees only approved chunks and my original question → refusals and "law not in our data" written by the code → `--trace` → full dev run → [agent-report.md](agent-report.md).
 
 **Numbers** (32 dev questions; 26 answerable, 6 to refuse)
 
@@ -270,6 +275,8 @@ Repeat filter: `single-15` on bge-m3 arrives again (17 → 18). On qwen3 no righ
 | Writer saw the right chunk | 22 of 27 | 22 of 27 (not the same ones) |
 | Rounds | 1 | 23 took 1, 5 took 2, 4 took 3 |
 | Median time per question | 63 s | 167 s |
+
+*Corrected later: checked by hand, it's 9 for the one-shot and 12 for the agent (Phases 4A and 4B). Failures below become search 3, Judge 2, writer 10.*
 
 Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 
@@ -312,6 +319,8 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 | Judge tokens | 347,386 | 312,808 |
 | Measured time | 91 min | 94 min |
 
+*Corrected later: complete, checked by hand, is 12 of 26 on both (Phase 4B).*
+
 **Findings**
 - **The first real rescue.** `single-09`: right chunk at rank 15, read in round 2, approved, and the stop rule ended the search. It had been a wrong refusal.
 - **It isn't a clean rescue.** The main rule is right, but the writer adds that a change without a document is void, citing chunks that don't say that. The citation check can't see it.
@@ -346,6 +355,8 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 | Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 12 of 17 | 15 of 17 | 14 of 17 |
 | Median time | 36 s | 63 s | 141 s | 54 s | 49 s | 118 s |
 | Failures: search / Judge / Writer | 13 / - / 9 | 4 / - / 15 | 2 / 1 / 11 | 5 / - / 8 | 1 / - / 13 | 0 / 3 / 10 |
+
+*Corrected later: Phase 4B's blind read moves the dev agent to 12 of 26, and its Writer failures to 12.*
 
 **Findings**
 - **The agent's lead on dev didn't carry over.** 13 against 9 and 6 on dev, 4 against 5 and 5 on test. A gap of one answer shows neither that it's better nor that it's worse. It shows the dev lead can't be taken at face value: its rules were built on those answers.
@@ -449,7 +460,7 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 | Measure | Value |
 |---|---:|
 | Frozen files changed | 0 |
-| Packages added | 9 (41 to 50) |
+| Packages added | 9 (44 to 53) |
 | Jaeger: download, disk, memory | 51 MB, 164 MB, about 40 MB |
 | Phoenix: download, disk, memory | 323 MB, 1.4 GB, about 450 MB |
 | Demo, local agent | 191.5 s, $0, the Judge is 66% of the time |
@@ -460,10 +471,10 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 **Findings**
 - **The vendor-neutral point holds.** The same span ids are in both viewers. Jaeger recognised our standard `gen_ai.*` names by itself, with model labels and a GenAI view. Phoenix recognised the LLM and retrieval spans from its own names.
 - **You can see why it searched again.** In round 2 of the local trace the Judge said `search_again`, the next step was `answer`, and the stop rule is on record. Haiku's Judge answered by itself on the same question.
-- **Traces catch what logs wouldn't.** One Judge span took 1,974 s where it normally takes 30 s, with the usual tokens. That ruled out the model: the Mac had gone to sleep four seconds into the call.
+- **Traces catch what logs wouldn't.** One Judge span took 1,974 s where the same question takes about 30 s, with the usual tokens. That ruled out the model: the Mac had gone to sleep four seconds into the call.
 - **Defaults aren't safe to assume.** Phoenix reports usage to Arize unless told not to, and asks for a login inside a container, so it refused every trace with a 401. The Anthropic SDK could send our trace id in a header. All three are off now.
 
-**Decisions:** tracing goes through a new command, `traced`, because the plain commands run only frozen code and can't read the switch without changing their `main()`. That change is left for me to decide. Own spans, not auto-instrumentation. Two exporters in the SDK, not a collector container. Jaeger stays in memory, and Phoenix keeps traces in a volume. The modern layer becomes Phase 6, though older reports still call it Phase 5.
+**Decisions:** tracing goes through a new command, `traced`, because the plain commands run only frozen code and can't read the switch without changing their `main()`. That change is left for me to decide. Own spans, not auto-instrumentation. Two exporters in the SDK, not a collector container. Jaeger stays in memory, and Phoenix keeps traces in a volume. The modern layer becomes Phase 6.
 
 **Lessons**
 - Test against the real thing. All tests passed while Phoenix refused every trace, and while a name clash (`labour.round` next to `labour.round.judge_said`) hid the very attribute that explains searching again. Only the real viewers showed either.
@@ -472,13 +483,40 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 
 ---
 
-## Open questions and ideas (backlog)
+## Wrap-up: consolidating for publishing
 
-- Missing-laws inventory → fetch exactly those from official ΦΕΚ in Phase 5.
-- Extract repeal links ("Κατηργήθη δια…") into metadata.
-- Group near-duplicates in search results.
-- Phase 4: compare local writer/judge with Claude Haiku (estimated ~$0.30 per full agent test run; workspace spend limit + budget guard in code).
-- Same architecture for other countries' law: only the ingestion (cleaning, chunking rules, stopwords, prompts, test set) is source-specific.
+**Goal:** put the project in a state I can publish: every decision and lesson in one place, one list of open work, a short README, numbers that agree, and no secrets. Docs only, with no change to code that decides an answer, to measuring files or to tags.
+
+**What we did:** [decisions.md](decisions.md), [lessons-learned.md](lessons-learned.md) and [backlog.md](backlog.md) → README cut from 442 lines to 229, with the rest moved to [setup.md](setup.md) → every number in the README, final report, journal, code tour and CLAUDE.md checked, and 7 of the 9 report scripts run again (not `build_chunks`, which rewrites the data files, or `search_report`, which measures afresh) → a fresh reader checked the new docs against the reports and the code → publishing check of the tree, the history and the ledgers.
+
+**Key numbers:**
+
+| Measure | Value |
+|---|---:|
+| HNSW against an exact scan, qwen3, 32 dev questions | 7.8 ms against 20.3 ms, same top 8 on 31 |
+| Report scripts run again | 7 of 9, none with a changed number |
+| Problems the fresh reader found in these docs | 11 errors, 7 overstatements, 13 small fixes, all corrected |
+| Pinned packages, really | 53, not the 50 I had written |
+| Secrets found in the tree or the history | 0, apart from one fake key in a test |
+
+**Findings**
+- **The database does use HNSW,** on both embedding tables. qwen3's 2,560 dimensions are over the limit for `vector` and under it for `halfvec`. At this size it saves only about 12 ms, and an exact scan would do.
+- **Hand-written numbers drifted, and generated ones didn't.** The package count, a timing, test counts and one question count were stale. Every report script gave the same numbers.
+- **"The Judge's value shrinks with a strong Writer" is only partly true.** On complete answers the agent adds 2 on either model. It shrinks on refusals and unsupported claims, grows on reach, and reverses on wrong refusals. See [lessons](lessons-learned.md#the-judges-value-shrinks-with-a-strong-writer-but-not-everywhere).
+- **"From Writer to data" is a judgement.** The failure labels still say Writer, and a test set written from the data can't see what the data lacks.
+
+**Decisions:** the plain commands stay untraced on purpose, which settles the question left open in Phase 5. Details move out of the README into `docs/setup.md`. The modern layer is Phase 6 everywhere.
+
+**Lessons**
+- Generate numbers where you can. A check that fails beats a promise to keep things in sync.
+- Check an assumption before writing it down. I had the index down as "no HNSW". One query and one try in a temp table showed otherwise.
+- A fresh reader still pays, right after a careful check. The worst thing it found was old: the README asked for about 2 GB of disk, and the models alone take 9.7 GB.
+
+---
+
+## Open questions and ideas
+
+They're all in one list now: [backlog.md](backlog.md).
 
 ---
 
@@ -487,7 +525,7 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 | Term | Meaning |
 |---|---|
 | Chunk | One piece of a law (usually one article) stored as one row |
-| Embedding / vector | A text's meaning as ~1,000 numbers |
+| Embedding / vector | A text's meaning as a long list of numbers (1,024 with bge-m3, 2,560 with qwen3) |
 | Semantic search | Find chunks with the closest meaning |
 | Keyword search | Find chunks with the same words (accent-insensitive) |
 | Hybrid / RRF | Combine both rankings; a chunk high in both wins |
@@ -496,6 +534,6 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 | Recall@8 | Share of questions where a correct chunk is among the 8 the model receives |
 | Gold source | The chunk that really contains the correct answer |
 | Dev / test split | Dev: allowed to look at while improving. Test: only for final measurement |
-| Query Enhancer | Agent that rewrites the question before searching |
+| Query Enhancer | The step that rewrites the question in the words of the law, for the agent's second try |
 | Judge | Agent that checks retrieved chunks: relevant? enough? search again? |
 | Writer | Model that writes the final answer from approved chunks |

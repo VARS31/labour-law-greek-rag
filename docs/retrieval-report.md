@@ -90,7 +90,7 @@ Phase 2 named these as questions that semantic search found and fusion lost. **4
 - **Which questions, at limit 2:** it gains `sector-02`, `single-10`, `single-15`, `single-17`, `single-29`, `vocab-03` and loses `reference-01`.
 - **How sure:** a split of 6 to 1 would happen by chance about 12% of the time. That's suggestive, on a small sample.
 - **Without the query instruction:** 21 at limit 2 and 23 at limit 4, so the result doesn't depend on it.
-- **Cost:** the embedding is already done, and took about 2.5 hours. A search takes about 0.12 s instead of 0.03 s. New chunks in Phase 5 would be embedded at the same slow speed, about 30 times slower than bge-m3.
+- **Cost:** the embedding is already done, and took about 2.5 hours. A search takes about 0.12 s instead of 0.03 s. New chunks in Phase 6 would be embedded at the same slow speed, about 30 times slower than bge-m3.
 - **Not measured:** whether the writer gives better answers with it.
 
 ## Refusal detection
@@ -117,8 +117,12 @@ The test split now runs once per named system instead of once in total, and `eva
 | System | Its run | Started |
 |---|---|---|
 | one-shot | `2026-11-04_oneshot-limit2-test` | 2026-11-04 |
+| oneshot-v2 | `2026-11-05_oneshot-qwen3-4b-semantic-units-limit2-test` | 2026-11-05 |
+| agent | `2026-11-05_agent-3c1-qwen3-4b-semantic-units-limit4-test` | 2026-11-05 |
+| oneshot-haiku | `2026-11-06_oneshot-haiku-qwen3-4b-semantic-units-limit2-test` | 2026-11-06 |
+| agent-haiku | `2026-11-06_agent-haiku-qwen3-4b-semantic-units-limit4-test` | 2026-11-06 |
 
-A second run for the same system is refused. An interrupted run may continue, but not with other settings. The agent isn't a choice for `--system` yet. Phase 4 adds it, so its one run can't be used up by accident on the one-shot code.
+A second run for the same system is refused. An interrupted run may continue, but not with other settings. The agent isn't a choice for `--system` in this phase. Phase 4 added it, so its one run couldn't be used up by accident on the one-shot code.
 
 ## What this doesn't show
 

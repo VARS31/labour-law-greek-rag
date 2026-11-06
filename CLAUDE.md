@@ -27,7 +27,7 @@ Same list as README.md "Status"; keep the two in sync.
 - 1C: one-shot baseline: search once, answer with citations, citations checked in code (**done**,
   [docs/answer-report.md](docs/answer-report.md))
 - 2: evaluation set: test questions with expected answers and sources, plus retrieval and answer metrics (**done**,
-  [docs/eval-report.md](docs/eval-report.md); fetch list for Phase 5 in [docs/missing-laws.md](docs/missing-laws.md))
+  [docs/eval-report.md](docs/eval-report.md); fetch list for Phase 6 in [docs/missing-laws.md](docs/missing-laws.md))
 - 3A: fix the fusion step: five ways of combining the search lists compared, retrieval only (**done**,
   [docs/retrieval-report.md](docs/retrieval-report.md))
 - 3B: the Query Enhancer and multi-query search, retrieval only; qwen3 as the default embedding; repeat filter fixed (**done**,
@@ -41,14 +41,14 @@ Same list as README.md "Status"; keep the two in sync.
 - 4B: Claude Haiku as Judge and Writer, chosen per run, with a budget guard in code (**done**, [docs/final-report.md](docs/final-report.md), [docs/models.md](docs/models.md))
 - 4B.1: `--haiku` on ask and agent, the key checked before any search, a separate record of manual runs, and `agent-mixed` as a dev-only diagnostic (**done**, [docs/final-report.md](docs/final-report.md))
 - 5: observability with OpenTelemetry: one trace per question, a span per step, Jaeger and Phoenix in the same run, off by default (**done**, [docs/observability.md](docs/observability.md))
+- Wrap-up: decisions, lessons, backlog and a publishing check (**done**, [docs/decisions.md](docs/decisions.md), [docs/lessons-learned.md](docs/lessons-learned.md), [docs/backlog.md](docs/backlog.md))
 - 6 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
-- Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
-  `repeal_sentences` field of each chunk.
 
-Next: a larger fresh test set is a later option; then Phase 6. Older reports and `docs/missing-laws.md` call the modern layer Phase 5.
+Next: a larger fresh test set, then Phase 6. All open work is one list in [docs/backlog.md](docs/backlog.md); add to it there, not elsewhere.
 
-- **After each phase, update the README status, layout and diagram.**
+- **After each phase, update the README status and diagram, and the layout table in docs/setup.md.** Keep the README short: details go in docs.
+- `docs/decisions.md` and `docs/lessons-learned.md` are written by hand, so a change to a decision means changing them too.
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
 - README style: plain, human-sounding language, short sentences, no buzzwords ("seamless", "robust",
   "leverage", "cutting-edge"), no emojis, no em-dashes.
@@ -100,7 +100,7 @@ Next: a larger fresh test set is a later option; then Phase 6. Older reports and
   in its `COMMENTS` dict and must be re-checked when results change).
 - All local model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
   in `labour_rag/embeddings.py`. Haiku's go through `labour_rag/haiku_client.py`.
-- Installed Python packages: duckdb, psycopg[binary], langgraph, anthropic, opentelemetry and what they bring (50 packages, all pinned in `requirements.txt`). Ask before adding more.
+- Installed Python packages: duckdb, psycopg[binary], langgraph, anthropic, opentelemetry and what they bring (53 pinned in `requirements.txt`; `psycopg[binary]` also installs `psycopg-binary`). Ask before adding more.
 
 ## Answering (Phase 1C)
 
@@ -169,7 +169,7 @@ Next: a larger fresh test set is a later option; then Phase 6. Older reports and
 - The code writes a refusal when the Judge refuses and says when a law isn't in our data (`law_in_data`). The writer can also refuse, as `prompts/answer.md` asks. A law the Judge names must be cited in the chunks (`named_laws`): matching digits aren't enough,
   because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
 - `docs/how-a-question-is-answered.md` states every rule in plain words and traces one question. It's written by hand, so a change to the agent means changing it too.
-- **The agent is frozen at the local tag `agent-frozen-3c1`, and that's what its test run measured.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`.
+- **The agent is frozen at the tag `agent-frozen-3c1`, and that's what its test run measured.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`.
   `evaluate` checks this itself (`frozen_changes`). New files don't count, because the Haiku code sits next to the frozen code. In `ask.py` and `agent.py` only `main()` and the docstring may change, for the `--haiku` flag: it compares those two without them, and everything else with `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql`, leaving out `evaluate.py`. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
 - Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
   started from Claude's session stops when the session does, unless started detached (`nohup caffeinate -ims …`), and continues if started again the same day. The 3C.1 run has its own name, `--name agent-3c1-qwen3-4b-semantic-units-limit4-dev`, so that it didn't continue the 3C run.
@@ -194,7 +194,7 @@ Next: a larger fresh test set is a later option; then Phase 6. Older reports and
 
 ## Observability (Phase 5)
 
-- `.venv/bin/python -m labour_rag.traced {ask,agent,evaluate} ...` runs that command as it is, with one trace per question if `TRACING` is on (`.env`, or the environment, which wins). Off by default: then OpenTelemetry isn't even loaded. The plain commands never trace, because they run only frozen code: making them honour the switch means changing their `main()`, so ask the owner first.
+- `.venv/bin/python -m labour_rag.traced {ask,agent,evaluate} ...` runs that command as it is, with one trace per question if `TRACING` is on (`.env`, or the environment, which wins). Off by default: then OpenTelemetry isn't even loaded. The plain commands never trace, on purpose, because they run only frozen code. That's the owner's decision (`docs/decisions.md`).
 - `labour_rag/tracing.py` wraps from outside, at run time: the model client (`TracedClient`), the graph nodes (a `StateGraph` subclass) and a few functions, restored by `finish()`. No frozen file knows about it. It has its own `TracerProvider`, never the global one, so that the Anthropic SDK and LangGraph add no spans, and it turns off the SDK's trace headers.
 - Attribute names: `gen_ai.*` where a standard exists, the OpenInference names Phoenix reads (`input.value`, `llm.*`, `retrieval.*`), and `labour.*` for the rest. No name may sit inside another (`labour.round` next to `labour.round.number`): Phoenix nests dotted names, so a clash hides the inner one, and `tests/test_tracing.py` checks this.
 - Viewers: `docker compose --profile observability up -d`, pinned, on 127.0.0.1 only: Jaeger (page 16686, OTLP 4318, memory only) and Phoenix (page and OTLP 6006, volume `phoenix-data`, mounted at the app user's home so it needs no root). Phoenix must keep `PHOENIX_TELEMETRY_ENABLED` and `PHOENIX_ENABLE_AUTH` false: the first stops it reporting usage, and without the second it answers 401 to every trace.

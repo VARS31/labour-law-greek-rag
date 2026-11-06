@@ -36,7 +36,7 @@ docker compose --profile observability stop jaeger phoenix
 
 `docker compose up -d` without the profile still starts only the database.
 
-**The plain commands never trace,** whatever `.env` says. `python -m labour_rag.agent` runs only frozen code, so no new code gets a chance to load. Tracing goes through `labour_rag.traced`, which wraps the same commands.
+**The plain commands never trace,** whatever `.env` says, on purpose. `python -m labour_rag.agent` runs only frozen code, so no new code gets a chance to load. Tracing goes through `labour_rag.traced`, which wraps the same commands.
 
 | Viewer | Page | Licence | Download | On disk | Memory |
 |---|---|---|---:|---:|---:|
@@ -86,7 +86,7 @@ An evaluate run makes one trace per question, tagged with the run's name.
 - **What did the Writer actually read?** In Phoenix, click `writer` for the messages, or `search` for the retrieved documents.
 - **Why was this question refused?** The `question` span says `refused by the Judge`, and there's no `writer` span.
 - **What broke?** A failed step is marked ERROR, with the message. A rejected key gives a `question` span with `Anthropic's API rejected ANTHROPIC_API_KEY...`. With Ollama down, `search` and `question` both say `cannot reach Ollama`.
-- **Is it the model or the machine?** In one demo run, the Judge's span took 1,974 s where it normally takes about 30 s. Its tokens were the same as ever, which ruled out the model. The Mac had gone to sleep four seconds into the call.
+- **Is it the model or the machine?** In one demo run, the Judge's span took 1,974 s where the same question takes about 30 s. Its tokens were the same as ever, which ruled out the model. The Mac had gone to sleep four seconds into the call.
 
 ## What to look at in each viewer
 
@@ -122,7 +122,7 @@ The same spans go to both viewers in the same run, over OTLP, OpenTelemetry's st
 
 ## How it's built
 
-- **Spans we write ourselves, not auto-instrumentation.** An auto-instrumentation library sees "a call to a model". It can't tell the Judge from the Writer, or see a verdict or what was "missing", and nothing instruments our plain calls to Ollama. Ours are about 400 lines, with exactly the spans we want.
+- **Spans we write ourselves, not auto-instrumentation.** An auto-instrumentation library sees "a call to a model". It can't tell the Judge from the Writer, or see a verdict or what was "missing", and nothing instruments our plain calls to Ollama. Ours are about 440 lines, with exactly the spans we want.
 - **From outside the frozen code.** `labour_rag/tracing.py` wraps things at run time, and only when tracing is on: the model client (`TracedClient`), the agent's graph nodes (a `StateGraph` that wraps each node as it's added), and a few functions. It reads what they return and changes nothing. No frozen file changed, and the freeze check still passes.
 - **Our own tracer provider, not the global one.** The Anthropic SDK and LangGraph look for the global one, so they stay silent, and every span in a trace is one we wrote.
 - **It can't cost you the question.** With tracing on and a viewer down, you get one warning on stderr and the answer as usual. A mistake while recording a span costs a warning, not the answer. The answer on stdout is the same with tracing on or off.

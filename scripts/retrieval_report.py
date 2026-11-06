@@ -299,7 +299,7 @@ def main():
     add(f"- **Without the query instruction:** {plain2} at limit 2 and {plain4} at limit 4, so the result doesn't depend on it.")
     add(f"- **Cost:** the embedding is already done, and took about 2.5 hours. A search takes about "
         f"{qwen['summary']['overall']['seconds_median']:.2f} s instead of {new['summary']['overall']['seconds_median']:.2f} s. New "
-        "chunks in Phase 5 would be embedded at the same slow speed, about 30 times slower than bge-m3.")
+        "chunks in Phase 6 would be embedded at the same slow speed, about 30 times slower than bge-m3.")
     add("- **Not measured:** whether the writer gives better answers with it.\n")
 
     add("## Refusal detection\n")
@@ -334,7 +334,7 @@ def main():
         add(f"| {system} | `{claim['run']}` | {claim['started']} |")
     add()
     add("A second run for the same system is refused. An interrupted run may continue, but not with other settings. The agent isn't "
-        "a choice for `--system` yet. Phase 4 adds it, so its one run can't be used up by accident on the one-shot code.\n")
+        "a choice for `--system` in this phase. Phase 4 added it, so its one run couldn't be used up by accident on the one-shot code.\n")
 
     add("## What this doesn't show\n")
     add(LIMITS_OF_THIS + "\n")
