@@ -6,7 +6,7 @@ Learning project: **agentic RAG over Greek labour law**, local by default, cloud
 
 - Scope: **labour law only**, i.e. volume 41 (label id 41, *ΕΡΓΑΤΙΚΗ ΝΟΜΟΘΕΣΙΑ*) of the Hugging Face
   dataset `AI-team-UoA/greek_legal_code` (CC-BY-4.0): 1,284 documents dated 1852–1999. The other 46
-  volumes are out of scope. Later (Phase 5) a modern layer adds Π.Δ. 80/2022, labelled by period.
+  volumes are out of scope. Later (Phase 6) a modern layer adds Π.Δ. 80/2022, labelled by period.
 - Models: **local by default, cloud optional.** Search, embeddings and the Query Enhancer are always local, via **Ollama**. Claude Haiku can be the Judge and the Writer, chosen per run. With it, the question and the law chunks leave the machine. See [docs/models.md](docs/models.md).
 - Storage: **Postgres + pgvector in Docker on port 5433**. Postgres.app already runs on 5432; leave it alone.
 - Search: semantic (vectors) plus accent-insensitive keyword search.
@@ -40,12 +40,13 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/final-report.md](docs/final-report.md))
 - 4B: Claude Haiku as Judge and Writer, chosen per run, with a budget guard in code (**done**, [docs/final-report.md](docs/final-report.md), [docs/models.md](docs/models.md))
 - 4B.1: `--haiku` on ask and agent, the key checked before any search, a separate record of manual runs, and `agent-mixed` as a dev-only diagnostic (**done**, [docs/final-report.md](docs/final-report.md))
-- 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
+- 5: observability with OpenTelemetry: one trace per question, a span per step, Jaeger and Phoenix in the same run, off by default (**done**, [docs/observability.md](docs/observability.md))
+- 6 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: a larger fresh test set is a later option; then Phase 5.
+Next: a larger fresh test set is a later option; then Phase 6. Older reports and `docs/missing-laws.md` call the modern layer Phase 5.
 
 - **After each phase, update the README status, layout and diagram.**
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
@@ -99,7 +100,7 @@ Next: a larger fresh test set is a later option; then Phase 5.
   in its `COMMENTS` dict and must be re-checked when results change).
 - All local model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
   in `labour_rag/embeddings.py`. Haiku's go through `labour_rag/haiku_client.py`.
-- Installed Python packages: duckdb, psycopg[binary], langgraph, anthropic and what they bring (41 packages, all pinned in `requirements.txt`). Ask before adding more.
+- Installed Python packages: duckdb, psycopg[binary], langgraph, anthropic, opentelemetry and what they bring (50 packages, all pinned in `requirements.txt`). Ask before adding more.
 
 ## Answering (Phase 1C)
 
@@ -190,6 +191,15 @@ Next: a larger fresh test set is a later option; then Phase 5.
 - **Manual runs:** `--haiku` on `ask` and `agent` goes through `haiku_runs.manual_run`. It prints what leaves the machine at the start and this question's cost at the end, and counts in `data/haiku_manual_spend.json` (gitignored), with its own $2 limit. `ask --haiku` prints "Writer:" and not "Judge + Writer:", because the one-shot has no Judge.
 - **`agent-mixed`:** local Judge, Haiku Writer (`haiku_runs.MixedClient`: any call with a schema stays local). A dev-only diagnostic: `TEST_SETTINGS` leaves it out, so `evaluate` refuses it on test. Its dev run has been made.
 - **Freeze:** `evaluate` refuses a Haiku run (except a try with `--ids`) unless the code matches both `agent-frozen-3c1` and `haiku-frozen-4b`, and refuses its test run until its dev run has finished. `--system oneshot-haiku` and `--system agent-haiku` have used their test runs. `haiku_client.py` and `budget.py` stay as they were measured: what surrounds them is in `haiku_runs.py`.
+
+## Observability (Phase 5)
+
+- `.venv/bin/python -m labour_rag.traced {ask,agent,evaluate} ...` runs that command as it is, with one trace per question if `TRACING` is on (`.env`, or the environment, which wins). Off by default: then OpenTelemetry isn't even loaded. The plain commands never trace, because they run only frozen code: making them honour the switch means changing their `main()`, so ask the owner first.
+- `labour_rag/tracing.py` wraps from outside, at run time: the model client (`TracedClient`), the graph nodes (a `StateGraph` subclass) and a few functions, restored by `finish()`. No frozen file knows about it. It has its own `TracerProvider`, never the global one, so that the Anthropic SDK and LangGraph add no spans, and it turns off the SDK's trace headers.
+- Attribute names: `gen_ai.*` where a standard exists, the OpenInference names Phoenix reads (`input.value`, `llm.*`, `retrieval.*`), and `labour.*` for the rest. No name may sit inside another (`labour.round` next to `labour.round.number`): Phoenix nests dotted names, so a clash hides the inner one, and `tests/test_tracing.py` checks this.
+- Viewers: `docker compose --profile observability up -d`, pinned, on 127.0.0.1 only: Jaeger (page 16686, OTLP 4318, memory only) and Phoenix (page and OTLP 6006, volume `phoenix-data`, mounted at the app user's home so it needs no root). Phoenix must keep `PHOENIX_TELEMETRY_ENABLED` and `PHOENIX_ENABLE_AUTH` false: the first stops it reporting usage, and without the second it answers 401 to every trace.
+- Never put the API key or `.env` contents into a span. To test with tracing on, set `TRACING=on` in the command's environment rather than opening `.env`.
+- Tests can't see a viewer refusing a trace or misreading a name: after changing a span, check it in the real viewers. Long traced runs need `caffeinate -i`, or the Mac's sleep ends up in the spans.
 
 ## Code
 

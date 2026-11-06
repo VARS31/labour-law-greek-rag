@@ -68,7 +68,8 @@ Don't read too much into this. Only 16 test questions can be answered, those que
 - [x] Phase 4A: Final test runs: one-shot v2 and the frozen agent, one run each on the test questions, compared with the Phase 2 baseline. Results are in [docs/final-report.md](docs/final-report.md): the agent's lead on dev doesn't carry over, with 4 of 16 test answers complete against 5 and 5, and 16 questions can't settle it.
 - [x] Phase 4B: Claude Haiku as judge and writer, chosen per run, with a budget guard in code. Results are in [docs/final-report.md](docs/final-report.md): 10 of 16 test answers are complete on both Haiku systems, against 5 and 4 on the local ones, for $0.35 in all. [docs/models.md](docs/models.md) says which model does what, and what it costs.
 - [x] Phase 4B.1: `--haiku` on `ask` and `agent` for demos, with a key check before any search and a separate record of what demos cost. `agent-mixed`, a dev-only test with a local judge and a Haiku writer, shows the judge needn't be Haiku for complete answers, but it's about 4 times slower. See [docs/final-report.md](docs/final-report.md#does-the-judge-need-to-be-haiku).
-- [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
+- [x] Phase 5: Observability with OpenTelemetry: one trace per question, a span per step, sent to Jaeger and Phoenix in the same run. It's off by default and doesn't touch the frozen code. See [docs/observability.md](docs/observability.md).
+- [ ] Phase 6 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
 Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
 
@@ -135,10 +136,39 @@ MEASURE IT
         |
         v
   the same with Haiku, optional ... built     Phase 4B
+
+
+SEE WHAT A QUESTION DID (optional)
+
+  a question through labour_rag.traced
+        |
+        v
+  one trace, a span per step ...... built     Phase 5
+        |
+        v
+  Jaeger and Phoenix, over OTLP ... built     Phase 5
 ```
 
 The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
 Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2 and the agent on the same questions, and Phase 4B added both of those with Haiku as judge and writer. One question chooses Haiku with `--haiku`, and a measuring run with `--system oneshot-haiku` or `--system agent-haiku`. Search, embeddings and the Query Enhancer stay local either way.
+
+## Seeing what a question did
+
+With tracing on, every question becomes a trace: a tree of timed steps you can open in a viewer. It shows where the time, the tokens and the money went, and why the agent searched again. Tracing is off by default, the viewers start only when you ask, and the frozen code doesn't change. This is for learning and demos, not for measuring.
+
+![One question in Jaeger: a bar per step, with the model next to each](docs/images/trace-jaeger.png)
+
+![The same question in Phoenix: the steps on the left, and what each one read and wrote on the right](docs/images/trace-phoenix.png)
+
+```bash
+docker compose --profile observability up -d     # start the viewers: about 370 MB to download, about 500 MB of memory
+# add TRACING=on to .env
+.venv/bin/python -m labour_rag.traced agent "Πόσες μέρες άδεια δικαιούμαι;" --trace
+```
+
+It prints the answer as usual, then a link to the trace in [Jaeger](http://127.0.0.1:16686) and in [Phoenix](http://127.0.0.1:6006). The same trace goes to both, over OTLP, OpenTelemetry's standard protocol. If the viewers aren't running, you still get the answer, with one warning. The plain commands, such as `python -m labour_rag.agent`, never trace, because they run only frozen code.
+
+**Prompts and chunks are recorded in the traces, on your machine.** That's fine here because they're public law texts. In a company setting you'd leave them out by default. The API key and the contents of `.env` are never recorded. [docs/observability.md](docs/observability.md) says what to look at and which questions it answers.
 
 ## Project layout
 
@@ -147,9 +177,9 @@ Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2
 | `README.md` | This file. |
 | `CLAUDE.md` | Project notes and working rules for Claude Code. |
 | `LICENSE` | MIT licence for the code in this repository. |
-| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres), LangGraph (the agent loop) and the Anthropic SDK (the optional Haiku systems), plus everything those bring along. |
-| `docker-compose.yml` | Postgres 17 with pgvector, on port 5433. |
-| `.env.example` | Template for `.env`: database password, ports, the Ollama model names and settings, and the optional Haiku key. |
+| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres), LangGraph (the agent loop), the Anthropic SDK (the optional Haiku systems) and OpenTelemetry (the optional tracing), plus everything those bring along. |
+| `docker-compose.yml` | Postgres 17 with pgvector, on port 5433, and two trace viewers, Jaeger and Phoenix, that start only when asked. |
+| `.env.example` | Template for `.env`: database password, ports, the Ollama model names and settings, the optional Haiku key, and the tracing switch. |
 | `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
 | `prompts/` | The instructions for the answering model (`answer.md`), the note every answer ends with (`closing_note.md`), and the instructions for the Query Enhancer (`enhancer.md`) and the judge (`judge.md`). Edit them freely. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
@@ -161,13 +191,14 @@ Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2
 | `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
 | `docs/agent-report.md` | Phase 3C and 3C.1 results: the agent against one-shot, what the extra rounds did, what the two fixes changed, three traced examples and the most instructive failures. |
 | `docs/final-report.md` | Phase 4A and 4B results: the five systems on dev and test side by side, claims their sources don't support, the overtime question, cost and time per run, failures by step, and how little 20 questions can show. |
+| `docs/observability.md` | Tracing: what it is, how to start it, what to look at in each viewer, and which questions it answers. Its pictures are in `docs/images/`. |
 | `docs/models.md` | Which model does what, where it runs and what it costs, with Haiku's settings and the budget guard. |
 | `docs/how-a-question-is-answered.md` | How the final agent answers a question, for someone who doesn't read code: every rule, and one real question traced from start to finish. |
-| `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
+| `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 6, which that file still calls Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
 | `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`), which system has used its one test run (`test_runs.json`), the blind readers' verdicts (`hand_read.json`) and what the measuring runs with Haiku have cost (`haiku_spend.json`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client, its budget guard, the key check and the `--haiku` runs (4B). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client, its budget guard, the key check and the `--haiku` runs (4B). The optional tracing and its command, `traced` (5). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
@@ -336,6 +367,9 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Measure on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev` (add `--retrieval-only` for search alone, `--fusion rrf` for another way of combining the lists) |
 | Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
 | Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
+| Start the trace viewers | `docker compose --profile observability up -d` |
+| Ask with a trace (with `TRACING=on` in `.env`) | `.venv/bin/python -m labour_rag.traced agent "your question" --trace` (or `ask`, or `evaluate`, and add `--haiku` as usual) |
+| Stop the trace viewers | `docker compose --profile observability stop jaeger phoenix` |
 | Rewrite the final report from the stored runs | `.venv/bin/python -I scripts/final_report.py` |
 | Ask with Haiku (the question and chunks leave your machine) | `.venv/bin/python -m labour_rag.ask "your question" --haiku` |
 | Ask through the agent with Haiku | `.venv/bin/python -m labour_rag.agent "your question" --haiku --trace` |

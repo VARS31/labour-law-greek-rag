@@ -158,7 +158,7 @@ HOW_RUN = """- **The guard.** `labour_rag/evaluate.py` lets each named system us
 EXPECTED_BELOW = {("test", "agent-haiku", "agent")}
 PAIRS_TEXT = """Only agent Haiku against the local agent on test falls below 0.05, at 0.03, and one-shot Haiku against the local one-shot comes close, at 0.06. With 12 comparisons, one like that could turn up by chance. What gives them more weight is that all four comparisons of Haiku with the local model point the same way: 24 questions complete only on Haiku, 2 only on the local model. They share questions and a Writer, so that isn't 26 separate results. Neither Haiku system can be told from the other, and no two local systems can be told apart on test."""
 
-NEXT = """The most useful next step is a larger fresh test set, read by a person. It's the one thing that can settle what these numbers only suggest, and it would also show whether a human reader sees what two Claude readers saw. After that comes Phase 5, the modern layer."""
+NEXT = """The most useful next step is a larger fresh test set, read by a person. It's the one thing that can settle what these numbers only suggest, and it would also show whether a human reader sees what two Claude readers saw. After that comes Phase 6, the modern layer."""
 
 
 def failure_of(system, record, wrong):

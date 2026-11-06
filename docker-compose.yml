@@ -21,5 +21,28 @@ services:
       timeout: 3s
       retries: 20
 
+  # Trace viewers. They start only when asked: docker compose --profile observability up -d. See docs/observability.md.
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0          # Apache-2.0. Keeps traces in memory, until the container is removed or restarted
+    container_name: labour-law-jaeger
+    profiles: [observability]
+    ports:
+      - "127.0.0.1:16686:16686"                 # the web page
+      - "127.0.0.1:4318:4318"                   # where traces arrive, over OTLP
+
+  phoenix:
+    image: arizephoenix/phoenix:version-21.0.0-nonroot      # Elastic License 2.0: free to use locally, not to offer as a hosted service
+    container_name: labour-law-phoenix
+    profiles: [observability]
+    environment:
+      PHOENIX_TELEMETRY_ENABLED: "false"        # it would otherwise report its own usage to Arize
+      PHOENIX_ENABLE_AUTH: "false"              # no login: the port below is on 127.0.0.1, so only this machine can reach it. Without this, it refuses traces
+    ports:
+      - "127.0.0.1:6006:6006"                   # the web page, and where traces arrive, over OTLP
+    volumes:
+      # Named volume: the traces survive restarts. It's the app user's home, so the volume takes that user's ownership and needs no root.
+      - phoenix-data:/home/nonroot
+
 volumes:
   pgdata:
+  phoenix-data:

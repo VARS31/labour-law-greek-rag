@@ -241,4 +241,4 @@ Test answers are listed by id only. Those scored incomplete weren't read.
 
 ## What comes next
 
-The most useful next step is a larger fresh test set, read by a person. It's the one thing that can settle what these numbers only suggest, and it would also show whether a human reader sees what two Claude readers saw. After that comes Phase 5, the modern layer.
+The most useful next step is a larger fresh test set, read by a person. It's the one thing that can settle what these numbers only suggest, and it would also show whether a human reader sees what two Claude readers saw. After that comes Phase 6, the modern layer.

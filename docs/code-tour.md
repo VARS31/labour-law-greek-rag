@@ -9,7 +9,7 @@ parts:
   to a local model, citing the chunks it used and checking those citations.
 - **Phase 2** measures all of that on a fixed set of questions with written-down answers.
 
-Phases 3A to 3C.1 follow, and they end with the agent as it is now. Phases 4A and 4B come after that: the final test runs, and Claude Haiku as an option. To see what the agent does with one question, step by step, read
+Phases 3A to 3C.1 follow, and they end with the agent as it is now. Phases 4A and 4B come after that: the final test runs, and Claude Haiku as an option. Phase 5 adds tracing, also as an option. To see what the agent does with one question, step by step, read
 [How a question is answered](how-a-question-is-answered.md).
 
 A few words used below:
@@ -580,6 +580,23 @@ These manual runs have their own record, `data/haiku_manual_spend.json`, with it
 
 **Tests:** `tests/test_haiku.py` uses a stand-in for Anthropic's package, so no test makes a real call or needs a key. It covers the prices, the budget guard across a resumed run, which call goes where on each system, the key check, the flag, and that a run that stops early leaves no folder. `tests/test_evaluate.py` gained the new freeze rules: a change to `main()` in `ask.py` passes, and any other change there shows.
 
+## Phase 5: seeing what a question did
+
+Nothing about answering changes. With tracing on, each question also leaves a trace: a tree of timed steps, called spans, that you can open in a viewer. [Observability](observability.md) says how to start it, what to look at and which questions it answers.
+
+### What's new in the code
+
+- **`labour_rag/traced.py`** is the command you run.
+  `traced agent "…" --haiku` → the same `agent` command with the same arguments. It reads the switch, `TRACING` in `.env`. If it's off, it just runs the command, and OpenTelemetry isn't even loaded. The plain commands stay as they are and never trace, because they run only frozen code.
+- **`labour_rag/tracing.py`** writes the spans, from outside the frozen code. It swaps a few things in at run time, and `finish` puts them back:
+  - `TracedClient`: the real model client, with a span around each call. It tells the Judge, the Enhancer and the Writer apart the way the Haiku client does, by their schema.
+  - `TracedStateGraph`: LangGraph's graph, wrapping each step as the agent adds it. That's how `round n`, `search` and `judge` get their spans, and it reads what each step returns.
+  - the `describe_` functions: what step → the attributes on its span. A mistake in one of them costs a warning, not the question.
+  - `start`: → an exporter for each viewer that's running, and one warning about any that isn't.
+- **`docker-compose.yml`** gained Jaeger and Phoenix, under a profile, so `docker compose up -d` still starts only the database.
+
+**Tests:** `tests/test_tracing.py` swaps the viewers for a list in memory and the database and models for stand-ins, so it needs no Docker or Ollama. It covers the shape of a trace, each span's attributes, why the agent searched again, cost, errors, viewers that are down, the same trace reaching both viewers, the run's name on an evaluate run, and that with tracing off the output is the command's own. It also checks that the key never reaches a span, and that no trace id reaches Anthropic.
+
 ## Running the tests
 
 ```bash
@@ -587,7 +604,7 @@ These manual runs have their own record, `data/haiku_manual_spend.json`, with it
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 281 of them, almost all with real strings from the data, and they run in a few seconds. If a later
+are 324 of them, almost all with real strings from the data, and they run in a few seconds. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview

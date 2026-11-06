@@ -20,7 +20,8 @@ Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
 Phase 4A  Final test runs, three systems side by side .. done   test: agent 4 of 16 complete vs 5 and 5, too few to separate them
 Phase 4B  Claude Haiku as Judge and Writer, budget guard . done   test: 10 of 16 complete on both, vs 5 and 4 local, $0.35 in all
 Phase 4B.1 --haiku for demos, key check, agent-mixed ...... done   dev: local Judge + Haiku Writer 17 of 26, same as agent Haiku, 58 min vs 11
-Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
+Phase 5   Observability with OpenTelemetry ............. done   one trace per question, in Jaeger and Phoenix, off by default
+Phase 6   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
 
 **The system in one picture**
@@ -434,6 +435,40 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 - A two-by-two split of one change tells you more than the change itself. Swapping both models showed Haiku helps. Swapping one at a time showed which one.
 - A guard should fail for the right reason. An empty key used to come out as "Connection error. Is Ollama running?", which is true of nothing. Check what a failure really says.
 - Rules depend on the model that met them. The stop rule was built for a Judge that keeps searching, and Haiku's Judge never needs it.
+
+---
+
+## Phase 5: observability with OpenTelemetry
+
+**Goal:** make every question a stored, visual trace, with a span per step, so I can show where time, tokens and money go, and why the agent searched again. For learning and demos, not measuring.
+
+**What we did:** Jaeger and Phoenix in compose, under a profile, pinned and on 127.0.0.1 → 9 pinned packages → spans we write ourselves, wrapping the model client and graph nodes from outside the frozen files → `labour_rag.traced` as the command, with `TRACING` in `.env` as the switch → the same traces to both viewers over OTLP → a demo of three questions, then the failure cases → [observability.md](observability.md), the README, the code tour.
+
+**Key numbers:**
+
+| Measure | Value |
+|---|---:|
+| Frozen files changed | 0 |
+| Packages added | 9 (41 to 50) |
+| Jaeger: download, disk, memory | 51 MB, 164 MB, about 40 MB |
+| Phoenix: download, disk, memory | 323 MB, 1.4 GB, about 450 MB |
+| Demo, local agent | 191.5 s, $0, the Judge is 66% of the time |
+| Demo, agent with Haiku | 44.4 s, $0.0065 |
+| Demo, refused question | 30 s, 5 spans, no writer |
+| Spent on Haiku in this phase, manual ledger | about $0.02 |
+
+**Findings**
+- **The vendor-neutral point holds.** The same span ids are in both viewers. Jaeger recognised our standard `gen_ai.*` names by itself, with model labels and a GenAI view. Phoenix recognised the LLM and retrieval spans from its own names.
+- **You can see why it searched again.** In round 2 of the local trace the Judge said `search_again`, the next step was `answer`, and the stop rule is on record. Haiku's Judge answered by itself on the same question.
+- **Traces catch what logs wouldn't.** One Judge span took 1,974 s where it normally takes 30 s, with the usual tokens. That ruled out the model: the Mac had gone to sleep four seconds into the call.
+- **Defaults aren't safe to assume.** Phoenix reports usage to Arize unless told not to, and asks for a login inside a container, so it refused every trace with a 401. The Anthropic SDK could send our trace id in a header. All three are off now.
+
+**Decisions:** tracing goes through a new command, `traced`, because the plain commands run only frozen code and can't read the switch without changing their `main()`. That change is left for me to decide. Own spans, not auto-instrumentation. Two exporters in the SDK, not a collector container. Jaeger stays in memory, and Phoenix keeps traces in a volume. The modern layer becomes Phase 6, though older reports still call it Phase 5.
+
+**Lessons**
+- Test against the real thing. All tests passed while Phoenix refused every trace, and while a name clash (`labour.round` next to `labour.round.judge_said`) hid the very attribute that explains searching again. Only the real viewers showed either.
+- Look at the picture. The first Phoenix screenshot looked fine, and it wasn't the trace at all.
+- Read a tool's settings before trusting it with your data, even a local one.
 
 ---
 
