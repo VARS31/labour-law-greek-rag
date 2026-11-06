@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from labour_rag.evaluate import (FROZEN_TAG, TEST_SETTINGS, claim_test_run, config_name, first_rank, frozen_changes, gold_documents,
+from labour_rag.evaluate import (FROZEN_TAG, HAIKU_TAG, TEST_SETTINGS, claim_test_run, config_name, dev_run_finished, first_rank, frozen_changes, frozen_refusal, gold_documents,
                                  problem, score_answer, score_retrieval, summarise_group, test_run_refusal)
 from labour_rag.key_facts import fact_present, stem
 from scripts.check_eval_set import copied_run, quote_in
@@ -110,8 +110,8 @@ class TestGuard(unittest.TestCase):
 
 
 class WhoMayUseTheTestSplit(unittest.TestCase):
-    def test_exactly_two_systems_have_a_run_left(self):
-        self.assertEqual(set(TEST_SETTINGS), {"oneshot-v2", "agent"})
+    def test_only_these_systems_are_allowed_a_run(self):
+        self.assertEqual(set(TEST_SETTINGS), {"oneshot-v2", "agent", "oneshot-haiku", "agent-haiku"})
         self.assertIn("no test run left", test_run_refusal("one-shot", TEST_SETTINGS["oneshot-v2"]))
 
     def test_each_runs_with_its_own_settings(self):
@@ -123,6 +123,10 @@ class WhoMayUseTheTestSplit(unittest.TestCase):
         for change in ({"fusion": "rrf"}, {"max_per_document": 4}, {"embedding": "bge-m3"}, {"number_rule": "digits"}, {"enhancer": "variants"}):
             self.assertIn(next(iter(change)), test_run_refusal("oneshot-v2", {**v2, **change}))
         self.assertIn("max_per_document", test_run_refusal("agent", {**TEST_SETTINGS["agent"], "max_per_document": 2}))
+
+    def test_a_haiku_system_has_the_same_settings_as_its_local_one(self):
+        self.assertEqual(TEST_SETTINGS["oneshot-haiku"], TEST_SETTINGS["oneshot-v2"])
+        self.assertEqual(TEST_SETTINGS["agent-haiku"], TEST_SETTINGS["agent"])
 
 
 class FrozenCode(unittest.TestCase):
@@ -156,6 +160,48 @@ class FrozenCode(unittest.TestCase):
         self.git("tag", FROZEN_TAG)
         self.evaluate.write_text("b\n", encoding="utf-8")
         self.assertEqual(frozen_changes(self.root), "")
+
+    def test_a_new_file_next_to_the_frozen_code_is_no_change(self):
+        self.git("tag", FROZEN_TAG)
+        (self.root / "labour_rag/haiku_client.py").write_text("x\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "y")
+        self.assertEqual(frozen_changes(self.root), "")
+
+    def test_a_deleted_frozen_file_shows(self):
+        self.git("tag", FROZEN_TAG)
+        self.judge.unlink()
+        self.assertIn("judge.py", frozen_changes(self.root))
+
+    def test_a_haiku_system_needs_both_tags(self):
+        self.git("tag", FROZEN_TAG)
+        self.assertIsNone(frozen_refusal("agent", self.root))
+        self.assertIn(HAIKU_TAG, frozen_refusal("agent-haiku", self.root))
+        self.git("tag", HAIKU_TAG)
+        self.assertIsNone(frozen_refusal("agent-haiku", self.root))
+        self.judge.write_text("b\n", encoding="utf-8")
+        self.assertIn(FROZEN_TAG, frozen_refusal("agent-haiku", self.root))
+
+
+class DevBeforeTest(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.results = Path(folder.name)
+        self.config = {"system": "agent-haiku", "split": "test", "retrieval_only": False, **TEST_SETTINGS["agent-haiku"]}
+        self.dev_run = self.results / "2026-11-06_agent-haiku-qwen3-4b-semantic-units-limit4-dev"
+
+    def test_a_test_run_needs_a_finished_dev_run(self):
+        self.assertFalse(dev_run_finished(self.config, self.results))
+        self.dev_run.mkdir()
+        self.assertFalse(dev_run_finished(self.config, self.results), "started isn't finished")
+        (self.dev_run / "summary.json").write_text("{}", encoding="utf-8")
+        self.assertTrue(dev_run_finished(self.config, self.results))
+
+    def test_the_other_systems_dev_run_doesnt_count(self):
+        self.dev_run.mkdir()
+        (self.dev_run / "summary.json").write_text("{}", encoding="utf-8")
+        self.assertFalse(dev_run_finished({**self.config, "system": "oneshot-haiku", **TEST_SETTINGS["oneshot-haiku"]}, self.results))
 
 
 class Winner(unittest.TestCase):

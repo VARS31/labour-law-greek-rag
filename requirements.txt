@@ -1,6 +1,12 @@
 duckdb==2.0.0
 psycopg[binary]==3.3.7
 
+# The official Anthropic SDK, for the optional Haiku systems (Phase 4B), and what it adds.
+anthropic==2.6.0
+docstring_parser==0.18.0
+jiter==0.18.0
+opentelemetry-api==1.45.2
+
 # LangGraph (the agent loop, Phase 3C) and everything it brings along, each pinned.
 langgraph==1.2.20
 annotated-types==0.8.0

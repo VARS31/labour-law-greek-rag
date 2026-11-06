@@ -13,6 +13,12 @@ eval/test_runs.json, and only the systems in TEST_SETTINGS may still use it:
 
     .venv/bin/python -m labour_rag.evaluate --split test --system oneshot-v2
     .venv/bin/python -m labour_rag.evaluate --split test --system agent --name agent-3c1-qwen3-4b-semantic-units-limit4-test
+
+Local by default. The Haiku systems are chosen per run, send the question and the law chunks out of this machine, and need
+ANTHROPIC_API_KEY in .env. They run on dev first, then once on test, with a budget guard (labour_rag/budget.py):
+
+    .venv/bin/python -m labour_rag.evaluate --split dev --system oneshot-haiku
+    .venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku
 """
 
 import argparse
@@ -25,6 +31,7 @@ from pathlib import Path
 
 from . import citations, enhancer, search
 from .ask import NOTE_ADDED, ask, closing_note
+from .budget import MODEL as HAIKU_MODEL, Budget, BudgetExceeded
 from .config import ROOT
 from .db import connect, friendly_errors
 from .embeddings import DEFAULT_EMBEDDING, EMBEDDINGS, embed_question
@@ -300,33 +307,55 @@ def evaluate_agent_item(conn, client, item, config, stored_output=None):
 
 
 # The named systems, and how each answers one question. "one-shot" with its old settings is the Phase 2 baseline.
-SYSTEMS = {"one-shot": evaluate_item, "oneshot-v2": evaluate_item, "agent": evaluate_agent_item}
+SYSTEMS = {"one-shot": evaluate_item, "oneshot-v2": evaluate_item, "agent": evaluate_agent_item,
+           "oneshot-haiku": evaluate_item, "agent-haiku": evaluate_agent_item}
+AGENT_SYSTEMS = {"agent", "agent-haiku"}
+HAIKU_SYSTEMS = {"oneshot-haiku", "agent-haiku"}
 AGENT_LIMIT = 4         # agent.LIMIT, here so that importing this module doesn't import LangGraph
 FROZEN_TAG = "agent-frozen-3c1"
-# The systems that still have a test run, and the settings that make them that system.
-TEST_SETTINGS = {"oneshot-v2": {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": 2, "embedding": "qwen3-4b"},
-                 "agent": {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": AGENT_LIMIT, "embedding": "qwen3-4b"}}
+HAIKU_TAG = "haiku-frozen-4b"       # the Haiku client as it was before its first dev run: nothing may change between dev and test
+ONE_SHOT_SETTINGS = {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": 2, "embedding": "qwen3-4b"}
+AGENT_SETTINGS = {**ONE_SHOT_SETTINGS, "max_per_document": AGENT_LIMIT}
+# The systems allowed a test run, and the settings that make them that system.
+TEST_SETTINGS = {"oneshot-v2": ONE_SHOT_SETTINGS, "agent": AGENT_SETTINGS, "oneshot-haiku": ONE_SHOT_SETTINGS, "agent-haiku": AGENT_SETTINGS}
 
 
 def test_run_refusal(system, config):
     """Why this system can't use the test split with these settings, or None if it can."""
     wanted = TEST_SETTINGS.get(system)
     if wanted is None:
-        return f"{system} has no test run left: only {' and '.join(TEST_SETTINGS)} have one, once each."
+        return f"{system} has no test run left: only {', '.join(TEST_SETTINGS)} have one, once each."
     different = [key for key, value in wanted.items() if config.get(key) != value]
     return f"{system}'s test run must use its own settings, and these differ: {', '.join(different)}." if different else None
 
 
-def frozen_changes(root=ROOT):
-    """What has changed since the agent was frozen, as git diff prints it. Empty means nothing has, which a test run needs, also
-    when a stopped run continues. If git can't tell, that counts as a change."""
-    done = subprocess.run(["git", "diff", FROZEN_TAG, "--", "labour_rag", "prompts", "sql", ":!labour_rag/evaluate.py"],
+def frozen_changes(root=ROOT, tag=FROZEN_TAG):
+    """What has changed in the frozen files since the tag, as git diff prints it. Empty means nothing has, which a test run needs, also
+    when a stopped run continues. A new file isn't a change: the Haiku client sits next to the frozen code and doesn't touch it. If git
+    can't tell, that counts as a change."""
+    done = subprocess.run(["git", "diff", "--diff-filter=a", tag, "--", "labour_rag", "prompts", "sql", ":!labour_rag/evaluate.py"],
                           cwd=root, capture_output=True, text=True)
     return done.stdout if done.returncode == 0 else done.stderr or "git diff failed"
 
 
+def frozen_refusal(system, root=ROOT):
+    """Why this system wouldn't be the frozen one, or None. A Haiku system must match both its own tag and the agent's."""
+    for tag in [FROZEN_TAG] + ([HAIKU_TAG] if system in HAIKU_SYSTEMS else []):
+        if frozen_changes(root, tag):
+            return (f"The code or prompts differ from the tag {tag}, so this wouldn't be the frozen system: "
+                    f"see git diff --diff-filter=a {tag} -- labour_rag prompts sql ':!labour_rag/evaluate.py'")
+    return None
+
+
+def dev_run_finished(config, results=RESULTS):
+    """True if this system has finished the dev questions with these settings. A Haiku system's test run comes after that."""
+    name = config_name({**config, "split": "dev"})
+    return any((run / "summary.json").exists() for run in results.glob(f"*_{name}"))
+
+
 def config_name(config):
-    kind = "agent" if config.get("system") == "agent" else "retrieval" if config["retrieval_only"] else "oneshot"
+    kind = config["system"] if config.get("system") in HAIKU_SYSTEMS else \
+        "agent" if config.get("system") == "agent" else "retrieval" if config["retrieval_only"] else "oneshot"
     embedding = f"-{config['embedding']}" if config["embedding"] != "bge-m3" or config["retrieval_only"] else ""
     # Runs before Phase 3B have no number rule in their name: they used the old repeat filter.
     rule = f"-{config['number_rule']}" if config.get("number_rule") else ""
@@ -380,16 +409,21 @@ def run(args):
               "enhancer": args.enhancer,
               "max_per_document": args.max_per_document, "embedding": args.embedding,
               "retrieval_only": args.retrieval_only, "context_chunks": CONTEXT_CHUNKS, "pool": POOL}
-    if args.system == "agent":
+    haiku = args.system in HAIKU_SYSTEMS
+    if args.system in AGENT_SYSTEMS:
         config["max_per_document"] = AGENT_LIMIT
+    if haiku:
+        config["model"] = HAIKU_MODEL
     run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
-    if args.split == "test":
-        refusal = test_run_refusal(args.system, config)
+    if args.split == "test" or (haiku and not args.ids):
+        refusal = frozen_refusal(args.system)
+        if args.split == "test":
+            refusal = test_run_refusal(args.system, config) or refusal
+            if haiku and not refusal and not dev_run_finished(config):
+                refusal = f"{args.system} must finish the dev questions with these settings before its test run."
         if refusal:
             raise SystemExit(refusal)
-        if frozen_changes():
-            raise SystemExit(f"The code or prompts differ from the tag {FROZEN_TAG}, so this wouldn't be the frozen system: "
-                             f"see git diff {FROZEN_TAG} -- labour_rag prompts sql ':!labour_rag/evaluate.py'")
+    if args.split == "test":
         run_name = claim_test_run(args.system, run_name)
     run_dir = RESULTS / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -400,16 +434,25 @@ def run(args):
              if i["id"] not in done]
 
     client = ModelClient.from_settings()
+    budget = None
+    if haiku:
+        from .haiku_client import HaikuClient      # only a run that asks for Haiku loads the SDK or reads the key
+        budget = Budget(run_dir.name)
+        client = HaikuClient(client, budget)
     print(f"{run_dir.name}: {len(items)} questions to run, {len(done)} already done", flush=True)
     with connect() as conn:
         for position, item in enumerate(items, 1):
-            record = SYSTEMS[args.system](conn, client, item, config, stored.get(item["id"]))
+            try:
+                record = SYSTEMS[args.system](conn, client, item, config, stored.get(item["id"]))
+            except BudgetExceeded as stop:
+                raise SystemExit(f"Stopped by the budget guard: {stop}. {len(records)} answers are saved, and the run can continue "
+                                 "once the limit allows it.") from None
             records.append(record)
             with (run_dir / "items.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
             retrieval = record["retrieval"]
             print(f"  {position}/{len(items)} {item['id']}: rank {retrieval['rank'] if retrieval else '-'}, "
-                  f"{sum(record['times'].values()):.1f} s", flush=True)
+                  f"{sum(record['times'].values()):.1f} s" + (f", ${budget.spent()[0]:.4f} so far" if budget else ""), flush=True)
     summary = write_summary(run_dir, records, config)
     print(summary_table(summary))
     print(f"wrote {run_dir}")
@@ -438,8 +481,10 @@ def main():
     elif not args.split:
         parser.error("--split is required, unless you use --rescore")
     else:
-        if args.system == "agent" and (args.retrieval_only or args.enhancer):
+        if args.system in AGENT_SYSTEMS and (args.retrieval_only or args.enhancer):
             parser.error("the agent always writes an answer and calls the enhancer itself")
+        if args.system in HAIKU_SYSTEMS and args.retrieval_only:
+            parser.error("a Haiku system is there to write answers: use --retrieval-only with a local one")
         if args.enhancer and not args.retrieval_only:
             parser.error("the enhancer isn't part of answering yet: use --retrieval-only")
         if args.split == "test" and (args.retrieval_only or args.ids):
