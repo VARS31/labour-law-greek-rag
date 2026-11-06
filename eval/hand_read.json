@@ -1221,6 +1221,258 @@
      "unsupported": []
     }
    }
+  },
+  "agent-mixed": {
+   "lookup-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "reference-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-11": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-14": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the 41-hour week applies \"από το 1983\", while the chunk says \"από 1 Ιαν. 1982\"; 1983 is only the date of the 25% step."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«σε 41 ώρες από το 1983»: the chunk sets 41 hours from 1 Jan. 1982; 1983 is only when the 25% from hour 41 starts."
+     ]
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-17": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-18": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-21": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-23": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says Β.Δ. 750/1971 concerns \"την τελευταία ή την προτελευταία Κυριακή του έτους\", while the cited chunk only points to Sundays set in art. 1 and does not say which they are."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«την τελευταία ή την προτελευταία Κυριακή του έτους»: the cited Β.Δ. 750/1971 chunk says only «τας εν άρθρ. 1 Κυριακάς» and doesn't say which Sundays."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-29": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "vocab-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It applies the art. 9 night-work permit to items \"σε κουλουροποιεία\", while art. 9 covers bakeries and leaves simit to the special κουλουροποιεία as an exclusion."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«σε κουλουροποιεία με τέτοιους κλιβάνους»: art. 9 gives the night permission to bakeries with such ovens; κουλουροποιεία appear only as the makers of the excluded σιμίτια."
+     ]
+    }
+   }
   }
  },
  "test": {
@@ -1931,5 +2183,6 @@
     }
    }
   }
- }
+ },
+ "agent_mixed_read": "Two more fresh Claude agents read agent-mixed's 17 complete answers, shuffled with 41 already-read answers from agent, agent-haiku and oneshot-haiku on the same questions, so they couldn't tell which were new. On those 41, every verdict and every flag of an unsupported claim matched what's stored here, apart from one disagreement between the two readers on agent's single-23, ruled a fail as before."
 }

@@ -50,7 +50,9 @@ A complete answer has every key fact and none of them wrong, as read by two read
 Its complete answers also say less that their sources don't support. It's faster here, and a test run cost $0.04 and $0.09. With Haiku the agent adds little to complete answers, but has no wrong refusals where one-shot Haiku has 4.
 Don't read too much into this. Only 16 test questions can be answered, those questions have been read before, and the readers are Claude models judging a Claude model. The full comparison, and what it can't show, is in [docs/final-report.md](docs/final-report.md).
 
-**With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Haiku is off by default and chosen per run. Search, embeddings and the Query Enhancer stay local either way. [docs/models.md](docs/models.md) has the details and the cost.
+**With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Haiku is off by default and chosen per run. Search, embeddings and the Query Enhancer stay local either way. [docs/models.md](docs/models.md) has the details and the cost. To try it on one question, see [Running with Claude Haiku](#running-with-claude-haiku-optional).
+
+**Does the judge need to be Haiku?** A dev-only test, with a local judge and a Haiku writer, gets the same 17 of 26 complete answers as agent Haiku, so most of the gain comes from the writer. But it takes 58 minutes against 11, and wrongly refuses 2 questions where agent Haiku refuses none. See [the final report](docs/final-report.md#does-the-judge-need-to-be-haiku).
 
 ## Status
 
@@ -65,6 +67,7 @@ Don't read too much into this. Only 16 test questions can be answered, those que
 - [x] Phase 3C.1: Two fixes: searching stops once an approved chunk answers directly, and round 2 reads further down the plain question's list. Results are in [docs/agent-report.md](docs/agent-report.md): one real rescue (`single-09`), wrong refusals down from 2 to 1, no new complete answer, and no faster. The agent is now frozen for Phase 4. [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md) gives every rule in plain words and traces one question.
 - [x] Phase 4A: Final test runs: one-shot v2 and the frozen agent, one run each on the test questions, compared with the Phase 2 baseline. Results are in [docs/final-report.md](docs/final-report.md): the agent's lead on dev doesn't carry over, with 4 of 16 test answers complete against 5 and 5, and 16 questions can't settle it.
 - [x] Phase 4B: Claude Haiku as judge and writer, chosen per run, with a budget guard in code. Results are in [docs/final-report.md](docs/final-report.md): 10 of 16 test answers are complete on both Haiku systems, against 5 and 4 on the local ones, for $0.35 in all. [docs/models.md](docs/models.md) says which model does what, and what it costs.
+- [x] Phase 4B.1: `--haiku` on `ask` and `agent` for demos, with a key check before any search and a separate record of what demos cost. `agent-mixed`, a dev-only test with a local judge and a Haiku writer, shows the judge needn't be Haiku for complete answers, but it's about 4 times slower. See [docs/final-report.md](docs/final-report.md#does-the-judge-need-to-be-haiku).
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
 Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
@@ -135,7 +138,7 @@ MEASURE IT
 ```
 
 The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
-Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2 and the agent on the same questions, and Phase 4B added both of those with Haiku as judge and writer. A measuring run chooses Haiku with `--system oneshot-haiku` or `--system agent-haiku`. Search, embeddings and the Query Enhancer stay local either way.
+Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2 and the agent on the same questions, and Phase 4B added both of those with Haiku as judge and writer. One question chooses Haiku with `--haiku`, and a measuring run with `--system oneshot-haiku` or `--system agent-haiku`. Search, embeddings and the Query Enhancer stay local either way.
 
 ## Project layout
 
@@ -163,8 +166,8 @@ Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`), which system has used its one test run (`test_runs.json`), the blind readers' verdicts (`hand_read.json`) and what Haiku has cost (`haiku_spend.json`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client and its budget guard (4B). |
+| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`), which system has used its one test run (`test_runs.json`), the blind readers' verdicts (`hand_read.json`) and what the measuring runs with Haiku have cost (`haiku_spend.json`). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client, its budget guard, the key check and the `--haiku` runs (4B). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
@@ -179,7 +182,7 @@ Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2
 | `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
 | `.claude/settings.json` | Claude Code settings for this project. |
-| `data/` | The downloaded dataset, script output and the chunks file `data/processed/labour_chunks.jsonl`. Created during setup, not in git. |
+| `data/` | The downloaded dataset, script output, the chunks file `data/processed/labour_chunks.jsonl` and the record of manual Haiku runs. Created during setup, not in git. |
 | `.venv/` | Local Python environment. Created during setup, not in git. |
 | `.env` | Your local settings with the database password. Created during setup, not in git. |
 
@@ -300,7 +303,20 @@ Run every command below from the repository root, the folder that contains this 
     questions of the test split are for one final measurement per system, so a second run by the same system is
     refused. `eval/test_runs.json` records who has used it.
 
-**Optional: Claude Haiku as judge and writer.** Everything above works without it. To use it, put your key in `.env` as `ANTHROPIC_API_KEY`, and check it with `.venv/bin/python -m labour_rag.haiku_client`, which makes one tiny paid call. Then choose it per run, with `--system oneshot-haiku` or `--system agent-haiku`. **With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. A budget guard stops a run at $1. See [docs/models.md](docs/models.md).
+### Running with Claude Haiku (optional)
+
+Everything above works without it. **With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Search, embeddings and the Query Enhancer stay local, so Docker and Ollama still have to be running.
+
+Put your key in `.env` as `ANTHROPIC_API_KEY`. Then add `--haiku` to one question:
+
+```bash
+.venv/bin/python -m labour_rag.ask "Πόσες μέρες άδεια δικαιούμαι;" --haiku             # Haiku writes the answer
+.venv/bin/python -m labour_rag.agent "Πόσες μέρες άδεια δικαιούμαι;" --haiku --trace   # Haiku is the judge and the writer
+```
+
+It says at the start what leaves your machine, and at the end what the question cost, which is usually under a cent. The key is checked before any search, at no cost. If it's missing or rejected, the command stops and says so.
+
+These runs count in `data/haiku_manual_spend.json`, with a $2 limit. That folder is gitignored, so they don't show up as git changes. Without `--haiku`, nothing changes and nothing leaves your machine. [docs/models.md](docs/models.md) has the details and the cost.
 
 ## Everyday commands
 
@@ -321,7 +337,8 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
 | Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
 | Rewrite the final report from the stored runs | `.venv/bin/python -I scripts/final_report.py` |
-| Check the Haiku key, with one tiny paid call | `.venv/bin/python -m labour_rag.haiku_client` (prints only whether the key is set and works, and the cost) |
+| Ask with Haiku (the question and chunks leave your machine) | `.venv/bin/python -m labour_rag.ask "your question" --haiku` |
+| Ask through the agent with Haiku | `.venv/bin/python -m labour_rag.agent "your question" --haiku --trace` |
 | Measure with Haiku on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku` (or `oneshot-haiku`). The question and the law chunks leave your machine |
 | See what the Query Enhancer makes of a question | `.venv/bin/python -m labour_rag.enhancer "your question" --search` |
 | Measure the enhancer and rewrite its report | `.venv/bin/python -I scripts/enhancer_report.py --run` |

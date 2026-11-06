@@ -1,4 +1,4 @@
-"""Phases 4A and 4B: write docs/final-report.md from the stored runs. Needs no database and no model.
+"""Phases 4A and 4B: write docs/final-report.md from the stored runs. Needs no database and no model. agent-mixed is a dev-only diagnostic beside the five systems.
 
     .venv/bin/python -m labour_rag.evaluate --split test --system oneshot-v2
     .venv/bin/python -m labour_rag.evaluate --split test --system agent --name agent-3c1-qwen3-4b-semantic-units-limit4-test
@@ -6,7 +6,7 @@
     .venv/bin/python -I scripts/final_report.py
 
 Each test run can be made once. The verdicts are in eval/hand_read.json, from two blind readers of every answer scored complete. The words around
-the numbers are hand-written (SHORT_VERSION, SYSTEMS_TEXT, TABLE_NOTES, UNSUPPORTED_TEXT, SHOWS, OVERTIME, LIMITS, HOW_RUN, NEXT), and so is EVIDENCE:
+the numbers are hand-written (SHORT_VERSION, SYSTEMS_TEXT, TABLE_NOTES, UNSUPPORTED_TEXT, SHOWS, JUDGE_TEXT, OVERTIME, LIMITS, HOW_RUN, NEXT), and so is EVIDENCE:
 the script stops if the claims it can check stop holding, and all of it must be redone whenever the runs or the verdicts change. It also stops if
 the tables in README.md differ from the ones here.
 """
@@ -33,6 +33,9 @@ LEDGER = ROOT / "eval/haiku_spend.json"
 SPLITS = ("dev", "test")
 SYSTEMS = {"baseline": "Baseline", "oneshot-v2": "One-shot v2", "agent": "Agent", "oneshot-haiku": "One-shot Haiku", "agent-haiku": "Agent Haiku"}
 HAIKU = ("oneshot-haiku", "agent-haiku")
+MIXED = "agent-mixed"       # local Judge, Haiku Writer, dev only
+MIXED_RUN = "agent-mixed-qwen3-4b-semantic-units-limit4-dev"
+AGENTS = ("agent", "agent-haiku", MIXED)
 PAIRS = (("oneshot-haiku", "oneshot-v2"), ("agent-haiku", "agent"), ("agent-haiku", "oneshot-haiku"), ("agent", "oneshot-v2"), ("agent", "baseline"), ("oneshot-v2", "baseline"))
 RUNS = {("baseline", "dev"): "oneshot-limit2-dev",
         ("baseline", "test"): "oneshot-limit2-test",
@@ -49,7 +52,7 @@ READ = json.loads(HAND_READ.read_text(encoding="utf-8"))
 # Scored as complete, but wrong when read. The rule, for all systems: an answer fails if it states a key fact wrong or leaves one out, anywhere,
 # short answer included. Errors outside the key facts are listed as unsupported claims, and don't fail it.
 WRONG_THOUGH_COMPLETE = {(system, split): {item: entry["why"] for item, entry in READ[split].get(system, {}).items() if entry["verdict"] == "fail"}
-                         for split in SPLITS for system in SYSTEMS}
+                         for split in SPLITS for system in (*SYSTEMS, MIXED)}
 
 # What each fail rests on: words that must be in the answer, and words that must not.
 EVIDENCE = {
@@ -76,7 +79,7 @@ EVIDENCE = {
 SHORT_VERSION = """**In short.** Replacing the local Judge and Writer with Claude Haiku is the first change in this project that shows up in complete answers on the test questions. Read by hand, complete answers on test go from 5 to \
 10 of 16 for the one-shot, and from 4 to 10 for the agent. On dev they go from 9 to 15 of 26, and from 12 to 17. Haiku's complete answers also say less that their sources don't support: on both sets together, 7 of 25 \
 against 11 of 14 for the one-shot, and 6 of 27 against 9 of 16 for the agent. A full test run cost $0.04 and $0.09, and took less time than the local ones. With Haiku writing, the agent adds little to complete answers \
-(10 against 10 on test, 17 against 15 on dev), but it makes no wrong refusals where one-shot Haiku makes 4. These sets are still small, the test questions have been read before, and the readers are Claude models judging a \
+(10 against 10 on test, 17 against 15 on dev), but it makes no wrong refusals where one-shot Haiku makes 4. A dev-only diagnostic says the Judge needn't be Haiku for complete answers, but Haiku's Judge is about 4 times faster ([details](#does-the-judge-need-to-be-haiku)). These sets are still small, the test questions have been read before, and the readers are Claude models judging a \
 Claude model: see [How little this can show](#how-little-this-can-show)."""
 
 SYSTEMS_TEXT = """| System | How it answers | Search | Judge and Writer |
@@ -116,6 +119,16 @@ SHOWS = """- **The Writer was the weak step.** Phase 4A pointed there, and chang
 - **Haiku is faster here, and costs little.** The median question takes {oneshot_seconds:.0f} s and {agent_seconds:.0f} s on test, against 49 s and 118 s on the local model. That's one laptop against a paid service, so it says nothing about other machines.
 - **The local agent's lead on dev still didn't carry over.** It leads the local one-shot 12 to 9 on dev, and trails it 4 to 5 on test. That's a gap of one answer on test, but dev isn't a fair place for it: its rules were built while reading those answers."""
 
+JUDGE_TEXT = """**On these questions, not for complete answers or unsupported claims.** With a local Judge and a Haiku Writer, the agent has {mixed_complete} complete answers, {mixed_flagged} of them with an unsupported claim, the same counts as agent Haiku. Question by question it's 3 each way, so the two can't be told apart. But the local Judge doesn't give all of the agent's value.
+
+- **The Writer is the whole gain from the local agent to agent-mixed.** The local Judge made the same decisions and approved the same chunks in both runs, on all 32 questions, so the same chunks reached both Writers. Complete answers go from 12 to 17: 7 questions complete only with Haiku writing, and 2 only with the local Writer.
+- **Searching again: the local Judge does it, and more than Haiku's.** It uses extra rounds on 6 questions, Haiku's on 4. Both find the right chunk in round 2 on `single-09`. Haiku's also finds it on `lookup-01`. The code's stop rule fired 5 times on the local Judge and never on Haiku's, because Haiku's Judge stops searching by itself.
+- **No wrong refusals: the local Judge doesn't give that.** It has 2 against 0, but only one is a real difference. On `lookup-01`, Haiku's Judge approves a chunk from the right law as partly relevant, and the agent's rule of reading the articles next to an approved chunk finds the right one. The local Judge approves nothing from that law, so that rule never fires, and it refuses after 3 rounds. On `vocab-01` the right chunk reaches no one. The Haiku Writer says it found nothing after the local Judge, while agent Haiku writes an answer with none of the key facts, and that isn't clearly better.
+- **What Haiku's Judge buys is speed.** The median question takes 20 s against 76 s, and the whole run 11 minutes against 58. The local Judge is {judge_share:.0%} of agent-mixed's time, and it saves only about $0.08 per run, so for a demo agent Haiku is the better choice.
+- **Against one-shot Haiku, the local Judge keeps part of the agent's value.** 17 complete answers against 15, the right chunk for 24 against 22, and 2 wrong refusals against 3.
+
+**Why not to lean on this.** It's one run on 26 questions that can be answered. The agent's rules, among them the stop rule and the reading further in round 2, were built on dev with this same local Judge, so dev flatters it. The stored test runs hint the other way: there the local Judge refused `single-25` and `vocab-04` with the right chunk in places 1 and 2, and Haiku's Judge refused neither. Agent-mixed didn't run on test, so what it would do there isn't known."""
+
 OVERTIME = """`reference-01` asks a factory worker's rate for overtime. The right answer says the general rate is in article 1 of Ν. 435/1976, and that its text isn't in our data. All five systems answer instead, so all five fail it.
 
 **Does Haiku tell υπερεργασία from υπερωρία? No.** Both Haiku systems cite Υ.Α. 11282/1979 art. 7, headed «Αμοιβή υπερεργασίας», and give its 25% as the answer to a question about υπερωρίες, without saying the two differ. One-shot Haiku uses the word υπερωρίες only in a line on night and Sunday work. Agent Haiku never uses it. Neither names Ν. 435/1976.
@@ -136,10 +149,10 @@ LIMITS = """- **The test set is small, and it has been read.** The complete loca
 - **I wrote the test set.** The owner reviewed 20 of its 52 items. Its expected answers follow our 1852-1999 data, not today's law."""
 
 HOW_RUN = """- **The guard.** `labour_rag/evaluate.py` lets each named system use the test split once, and only with its own settings. A Haiku system must also have finished the dev questions first.
-- **The freeze.** The Haiku client is new files next to the frozen code, and no frozen file changed: `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` prints nothing. The same check against the tag `haiku-frozen-4b`, set before the first dev run, also prints nothing, so nothing changed between dev and test. `evaluate` checks both itself.
-- **The budget guard.** $1 per run and $3 across all of 4B, in `labour_rag/budget.py`, on top of a $10 monthly limit on the workspace. It counts real usage after every call, keeps the total on disk in [`eval/haiku_spend.json`](../eval/haiku_spend.json), and doesn't make a call that could pass a limit. It never had to stop anything.
-- **The key.** The code reads it only to hand it to the SDK. I never saw it: it wasn't opened by hand, printed or logged. One tiny call confirmed it worked, for ${key_check:.6f}.
-- **The runs.** Haiku's ran on 2026-11-06, detached from the session, one after the other, with no other model job, and each answered every question. The local test runs are from 2026-11-05, and the baseline's from 2026-11-04.
+- **The freeze.** The Haiku code is new files next to the frozen code. The one change to frozen files is the `--haiku` flag, in the `main()` of `ask.py` and `agent.py`. It came after the runs of the five systems and before `agent-mixed`'s, and it doesn't touch what decides an answer. `evaluate` compares those two files without their `main()`, and everything else with `git diff --diff-filter=a`, against both `agent-frozen-3c1` and `haiku-frozen-4b`, the tag set before Haiku's first dev run. Nothing else has changed since either tag.
+- **The budget guard.** $1 per run and $3 across all of 4B, in `labour_rag/budget.py`, on top of a $10 monthly limit on the workspace. It counts real usage after every call, keeps the total on disk in [`eval/haiku_spend.json`](../eval/haiku_spend.json), and doesn't make a call that could pass a limit. It never had to stop anything. Manual `--haiku` runs have their own record and $2 limit, in the gitignored `data/haiku_manual_spend.json`.
+- **The key.** The code reads it only to hand it to the SDK. I never saw it: it wasn't opened by hand, printed or logged. One tiny call first confirmed it worked, for ${key_check:.6f}. Since then, every Haiku run checks it before any search, with a call that uses no tokens.
+- **The runs.** Haiku's and `agent-mixed` ran on 2026-11-06, detached from the session, one after the other, with no other model job, and each answered every question. The local test runs are from 2026-11-05, and the baseline's from 2026-11-04.
 - **Two corrections.** The Phase 3C report said 15 complete answers against 12 on dev. Phase 4A made that 13 against 9. The blind read makes it 12 against 9. [The agent report](agent-report.md) is corrected."""
 
 EXPECTED_BELOW = {("test", "agent-haiku", "agent")}
@@ -152,7 +165,7 @@ def failure_of(system, record, wrong):
     """Which step an answer fell short at, or None. An answer that fails when read goes through the same functions as one that lacks a key fact."""
     if record["id"] in wrong:
         record = {**record, "score": {**record["score"], "fact_share": 0}}
-    step = agent_problem(record) if system in ("agent", "agent-haiku") else problem(record)
+    step = agent_problem(record) if system in AGENTS else problem(record)
     return "writer" if step == "reading" else step
 
 
@@ -175,7 +188,7 @@ def numbers(system, run, split, ledger):
             "facts": run["summary"]["overall"]["fact_share"], "correct_refusals": sum(r["score"]["refused"] for r in must_refuse),
             "wrong_refusals": {r["id"] for r in answerable if r["score"]["refused"]}, "reached": sum(bool(r["retrieval"]["in_context"]) for r in gold),
             "seconds": run["summary"]["overall"]["seconds_median"], "minutes": sum(s for r in items.values() for s in r["times"].values()) / 60,
-            "failures": failures, "questions": len(items), "has_judge": system in ("agent", "agent-haiku"),
+            "failures": failures, "questions": len(items), "has_judge": system in AGENTS,
             "flagged_both": {i for i in complete if read[i]["reader_a"]["unsupported"] and read[i]["reader_b"]["unsupported"]},
             "flagged_either": {i for i in complete if read[i]["reader_a"]["unsupported"] or read[i]["reader_b"]["unsupported"]},
             "claims": (sum(len(read[i]["reader_a"]["unsupported"]) for i in complete), sum(len(read[i]["reader_b"]["unsupported"]) for i in complete)),
@@ -225,6 +238,24 @@ def haiku_claims_table(n):
     return "\n".join(lines)
 
 
+def judge_table(n, mixed_run, runs):
+    """The dev-only diagnostic: which Judge, side by side."""
+    columns = (("Agent", n["agent", "dev"], "agent"), ("Agent-mixed", n[MIXED, "dev"], MIXED), ("Agent Haiku", n["agent-haiku", "dev"], "agent-haiku"), ("One-shot Haiku", n["oneshot-haiku", "dev"], "oneshot-haiku"))
+    used = {name: (mixed_run if name == MIXED else runs[name, "dev"])["summary"]["overall"].get("rounds_used") for _, _, name in columns}
+    rows = [("Judge", lambda c, name: {"agent": "local", MIXED: "local", "agent-haiku": "Haiku", "oneshot-haiku": "none"}[name]),
+            ("Writer", lambda c, name: "local" if name == "agent" else "Haiku"),
+            ("**Complete answers, read by hand**", lambda c, name: f"**{len(c['complete'])} of {c['answerable']}**"),
+            ("Of those, with a claim their sources don't support", lambda c, name: str(len(c["flagged_both"]))),
+            ("Wrong refusals", lambda c, name: f"{len(c['wrong_refusals'])} of {c['answerable']}"),
+            ("Correct refusals", lambda c, name: f"{c['correct_refusals']} of {c['must_refuse']}"),
+            ("Right chunk reached the Writer", lambda c, name: f"{c['reached']} of {c['gold']}"),
+            ("Questions using 1 / 2 / 3 rounds", lambda c, name: " / ".join(str(used[name][r]) for r in "123") if used[name] else "-"),
+            ("Time per question (median)", lambda c, name: f"{c['seconds']:.0f} s"),
+            ("Time for the whole run", lambda c, name: f"{c['minutes']:.0f} min"),
+            ("Cost of the whole run", lambda c, name: f"${c['cost']:.2f}")]
+    return "\n".join(["| Dev | " + " | ".join(label for label, _, _ in columns) + " |", "|---|" + "---:|" * len(columns)] + ["| " + title + " | " + " | ".join(cell(c, name) for _, c, name in columns) + " |" for title, cell in rows])
+
+
 def only_on_each(n, first, second, split):
     """The questions complete on one of the two systems and not on the other."""
     a, b = n[first, split]["complete"], n[second, split]["complete"]
@@ -240,7 +271,7 @@ def pairs_table(n):
     return "\n".join(lines)
 
 
-def cost_table(n, runs):
+def cost_table(n, runs, mixed_run):
     lines = ["| System | Set | Questions | Calls to Haiku | Tokens in | Tokens out | Of those, thinking | Cost of the run | Per question | Whole run |", "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
     for system in HAIKU:
@@ -250,6 +281,11 @@ def cost_table(n, runs):
             calls = [r["tokens"] for r in runs[system, split]["items"].values() if r.get("tokens")] + [x["tokens"] for r in runs[system, split]["items"].values() for x in r.get("rounds", [])]
             thinking = sum(t.get("thinking_tokens") or 0 for t in calls) / sum(t["answer_tokens"] for t in calls)
             lines.append(f"| {SYSTEMS[system]} | {split} | {c['questions']} | {entry['calls']} | {entry['input_tokens']:,} | {entry['output_tokens']:,} | {thinking:.0%} | ${entry['spent']:.4f} | ${entry['spent'] / c['questions']:.4f} | {c['minutes']:.1f} min |")
+    c = n[MIXED, "dev"]
+    entry = ledger["runs"][c["dir"]]
+    writer = [r["tokens"] for r in mixed_run["items"].values() if r.get("tokens")]
+    thinking = sum(t.get("thinking_tokens") or 0 for t in writer) / sum(t["answer_tokens"] for t in writer)
+    lines.append(f"| Agent-mixed (local Judge) | dev | {c['questions']} | {entry['calls']} | {entry['input_tokens']:,} | {entry['output_tokens']:,} | {thinking:.0%} | ${entry['spent']:.4f} | ${entry['spent'] / c['questions']:.4f} | {c['minutes']:.1f} min |")
     return "\n".join(lines)
 
 
@@ -290,10 +326,20 @@ def main():
         raise SystemExit("These runs aren't there: " + ", ".join(missing))
     ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
     n = {key: numbers(key[0], run, key[1], ledger) for key, run in runs.items()}
+    mixed_run = find_run(MIXED_RUN)
+    if mixed_run is None:
+        raise SystemExit(f"This run isn't there: {MIXED_RUN}")
+    n[MIXED, "dev"] = numbers(MIXED, mixed_run, "dev", ledger)
+    mixed_items, local_items, haiku_items = mixed_run["items"], runs["agent", "dev"]["items"], runs["agent-haiku", "dev"]["items"]
+    mixed_times = {}
+    for record in mixed_items.values():
+        for step, seconds in record["times"].items():
+            mixed_times[step] = mixed_times.get(step, 0) + seconds
     note = (ROOT / "prompts/closing_note.md").read_text(encoding="utf-8").strip()
     words = {s: statistics.median(len(runs[s, split]["items"][i]["answer"].replace(note, "").split()) for split in SPLITS for i in n[s, split]["complete"]) for s in SYSTEMS}
     test_runs = json.loads(TEST_RUNS.read_text(encoding="utf-8"))
-    all_read = [entry for split in SPLITS for items in READ[split].values() for entry in items.values()]
+    agent_test = runs["agent", "test"]["items"]
+    all_read = [entry for split in SPLITS for system, items in READ[split].items() if system != MIXED for entry in items.values()]
     overtime = {system: runs[system, "dev"]["items"]["reference-01"] for system in SYSTEMS}
     combined = {system: (len(n[system, "dev"]["complete"]) + len(n[system, "test"]["complete"]), len(n[system, "dev"]["flagged_both"]) + len(n[system, "test"]["flagged_both"])) for system in SYSTEMS}
     below = {(s, a, b) for s in SPLITS for a, b in PAIRS if chance_of_split(*map(len, only_on_each(n, a, b, s))) < 0.05}
@@ -314,7 +360,7 @@ def main():
               and (len(n["agent", "dev"]["failures"]["judge"]), len(n["agent", "test"]["failures"]["judge"]), len(n["agent-haiku", "dev"]["failures"]["judge"]), len(n["agent-haiku", "test"]["failures"]["judge"])) == (1, 3, 1, 0),
               "failures add up": all(sum(len(ids) for ids in c["failures"].values()) == c["questions"] - len(c["complete"]) - c["correct_refusals"] for c in n.values()),
               "the set sizes": all((c["questions"], c["answerable"], c["must_refuse"], c["gold"]) == ((32, 26, 6, 27) if key[1] == "dev" else (20, 16, 4, 17)) for key, c in n.items()),
-              "every answer scored complete was read, and nothing else": all(set(READ[split][system]) == n[system, split]["matched"] for system in SYSTEMS for split in SPLITS),
+              "every answer scored complete was read, and nothing else": all(set(READ[split][system]) == n[system, split]["matched"] for system in SYSTEMS for split in SPLITS) and set(READ["dev"][MIXED]) == n[MIXED, "dev"]["matched"],
               "the words each fail rests on": set(EVIDENCE) == {(s, split, i) for (s, split), wrong in WRONG_THOUGH_COMPLETE.items() for i in wrong}
               and all(all(w in runs[s, split]["items"][i]["answer"] for w in there) and not any(w in runs[s, split]["items"][i]["answer"] for w in gone) for (s, split, i), (there, gone) in EVIDENCE.items()),
               "the readers agreed on 109 of 111, and I ruled on the other 2": len(all_read) == 111 and sum(e["reader_a"]["verdict"] == e["reader_b"]["verdict"] for e in all_read) == 109 and sum(e["ruled"] for e in all_read) == 2
@@ -336,6 +382,22 @@ def main():
               "the test runs are the claimed ones": all(test_runs[name]["run"] == runs[system, "test"]["dir"] for name, system in (("one-shot", "baseline"), ("oneshot-v2", "oneshot-v2"), ("agent", "agent"), ("oneshot-haiku", "oneshot-haiku"), ("agent-haiku", "agent-haiku"))),
               "the ledger covers every Haiku run and stays under the limits": all(n[s, split]["cost"] > 0 and n[s, split]["cost"] < 1 for s in HAIKU for split in SPLITS) and ledger["total"] < 3,
               "one reader alone adds one each on v2 dev and agent Haiku test": {key: len(c["flagged_either"]) - len(c["flagged_both"]) for key, c in n.items() if len(c["flagged_either"]) != len(c["flagged_both"])} == {("oneshot-v2", "dev"): 1, ("agent-haiku", "test"): 1},
+              "agent-mixed's counts": (len(n[MIXED, "dev"]["matched"]), len(n[MIXED, "dev"]["complete"]), len(n[MIXED, "dev"]["flagged_both"]), len(n[MIXED, "dev"]["flagged_either"]), n[MIXED, "dev"]["wrong_refusals"], n[MIXED, "dev"]["correct_refusals"], n[MIXED, "dev"]["reached"]) == (17, 17, 3, 3, {"vocab-01", "lookup-01"}, 5, 24),
+              "agent-mixed's time and cost": (round(n[MIXED, "dev"]["seconds"]), round(n[MIXED, "dev"]["minutes"]), round(n[MIXED, "dev"]["cost"], 2), round(n["agent-haiku", "dev"]["minutes"]), round(n["agent-haiku", "dev"]["cost"] - n[MIXED, "dev"]["cost"], 2)) == (76, 58, 0.05, 11, 0.08),
+              "agent Haiku is about 4 times faster than agent-mixed": 3.5 < n[MIXED, "dev"]["seconds"] / n["agent-haiku", "dev"]["seconds"] < 4.5,
+              "agent-mixed has no test run": not any(MIXED in claim for claim in test_runs) and not list((ROOT / "eval/results").glob("*agent-mixed*-test")),
+              "agent-mixed's settings are agent-haiku's, with a local Judge": all(mixed_run["summary"]["config"][key] == runs["agent-haiku", "dev"]["summary"]["config"][key] for key in (*TEST_SETTINGS["agent-haiku"], "model")) and mixed_run["summary"]["config"]["judge"] == "local",
+              "the local Judge made the same decisions in both runs": all([x["decision"] for x in local_items[i]["rounds"]] == [x["decision"] for x in mixed_items[i]["rounds"]] and [x["approved"] for x in local_items[i]["rounds"]] == [x["approved"] for x in mixed_items[i]["rounds"]] and [c["id"] for c in local_items[i]["chunks"]] == [c["id"] for c in mixed_items[i]["chunks"]] for i in local_items) and len(local_items) == 32,
+              "local agent against agent-mixed, 7 to 2": tuple(map(len, only_on_each(n, MIXED, "agent", "dev"))) == (7, 2),
+              "agent Haiku against agent-mixed, 3 to 3": tuple(map(len, only_on_each(n, "agent-haiku", MIXED, "dev"))) == (3, 3),
+              "agent-mixed against one-shot Haiku": (len(n[MIXED, "dev"]["complete"]), len(n["oneshot-haiku", "dev"]["complete"]), n["oneshot-haiku", "dev"]["reached"], len(n["oneshot-haiku", "dev"]["wrong_refusals"])) == (17, 15, 22, 3),
+              "extra rounds and the stop rule": (sum(len(r["rounds"]) > 1 for r in mixed_items.values()), sum(len(r["rounds"]) > 1 for r in haiku_items.values()), sum(any(x["stopped_by_code"] for x in r["rounds"]) for r in mixed_items.values()), sum(any(x["stopped_by_code"] for x in r["rounds"]) for r in haiku_items.values())) == (6, 4, 5, 0),
+              "the right chunk first found in round 2": {i for i, r in mixed_items.items() if r["retrieval"] and r["retrieval"]["gold_first_round"] == 2} == {"single-09"} and {i for i, r in haiku_items.items() if r["retrieval"] and r["retrieval"]["gold_first_round"] == 2} == {"single-09", "lookup-01"},
+              "lookup-01: the neighbour rule on Haiku's Judge, a refusal on the local one": mixed_items["lookup-01"]["refused_by_judge"] and len(mixed_items["lookup-01"]["rounds"]) == 3 and not mixed_items["lookup-01"]["retrieval"]["gold_judged"] and not any(x["approved"] for x in mixed_items["lookup-01"]["rounds"])
+              and "lookup-01" in n["agent-haiku", "dev"]["complete"] and any(c["id"] == "glc-33848-010" and c["source"].startswith("next to") for x in haiku_items["lookup-01"]["rounds"] for c in x["chunks"]) and haiku_items["lookup-01"]["rounds"][0]["approved"] == ["glc-33848-011"],
+              "vocab-01: no one has the right chunk, the mixed Writer refuses, agent Haiku has no key facts": not any(it["vocab-01"]["retrieval"]["in_context"] for it in (mixed_items, haiku_items)) and mixed_items["vocab-01"]["score"]["refused"] and not mixed_items["vocab-01"]["refused_by_judge"] and not haiku_items["vocab-01"]["score"]["refused"] and haiku_items["vocab-01"]["score"]["fact_share"] == 0,
+              "on test the local Judge refused two that Haiku's didn't": n["agent", "test"]["wrong_refusals"] == {"single-25", "vocab-04"} and all(agent_test[i]["refused_by_judge"] for i in ("single-25", "vocab-04")) and {agent_test[i]["retrieval"]["rank"] for i in ("single-25", "vocab-04")} == {1, 2} and not n["agent-haiku", "test"]["wrong_refusals"],
+              "the ledger stays the record of the measuring runs": "manual" not in ledger["runs"],
               "which comparisons fall below 0.05": below == EXPECTED_BELOW}
     broken = [claim for claim, holds in claims.items() if not holds]
     if broken:
@@ -369,11 +431,15 @@ def main():
     add(haiku_claims_table(n) + "\n")
     add("## What it shows\n")
     add(SHOWS.format(oneshot_seconds=n["oneshot-haiku", "test"]["seconds"], agent_seconds=n["agent-haiku", "test"]["seconds"]) + "\n")
+    add("## Does the Judge need to be Haiku?\n")
+    add("`agent-mixed` is the agent with a local Judge and a Haiku Writer, and nothing else changed. It ran on the dev questions only and doesn't touch test, so it's a diagnostic and not a result like the five above. Two more fresh readers read its complete answers blind, shuffled with 41 answers already read. They differed once, on the local agent's `single-23`, which I ruled a fail as before. Otherwise, on those 41, they matched every stored verdict and every flag of an unsupported claim. That shows how consistent one model is with itself, not that its readers are independent.\n")
+    add(judge_table(n, mixed_run, runs) + "\n")
+    add(JUDGE_TEXT.format(mixed_complete=len(n[MIXED, "dev"]["complete"]), mixed_flagged=len(n[MIXED, "dev"]["flagged_both"]), judge_share=mixed_times["judge"] / sum(mixed_times.values())) + "\n")
     add("## The overtime question\n")
     add(OVERTIME + "\n")
     add("## Cost and time per run\n")
-    add(cost_table(n, runs) + "\n")
-    add(f"Everything spent in Phase 4B, with the key check and two trial questions, comes to **${ledger['total']:.2f}** of the $3 limit. That counts the calls to Haiku, not the work of reading the answers. Haiku's thinking is most of its output and is billed as output, which is why a call costs about $0.002 and not the fraction of that the visible answer would suggest. In the agent's Haiku test run, the Judge takes {times['judge'] / sum(times.values()):.0%} of the time, the Writer {times['model answer'] / sum(times.values()):.0%} and the local Query Enhancer {times.get('enhancer', 0) / sum(times.values()):.0%}. The local systems cost no money here, but they tie up the machine: {n['agent', 'test']['minutes']:.0f} minutes for the agent's test run.\n")
+    add(cost_table(n, runs, mixed_run) + "\n")
+    add(f"Everything spent on measuring in Phase 4B, with the key check and three trial questions, comes to **${ledger['total']:.2f}** of the $3 limit. That counts the calls to Haiku, not the work of reading the answers. Haiku's thinking is most of its output and is billed as output, which is why a call costs about $0.002 and not the fraction of that the visible answer would suggest. In the agent's Haiku test run, the Judge takes {times['judge'] / sum(times.values()):.0%} of the time, the Writer {times['model answer'] / sum(times.values()):.0%} and the local Query Enhancer {times.get('enhancer', 0) / sum(times.values()):.0%}. The local systems cost no money here, but they tie up the machine: {n['agent', 'test']['minutes']:.0f} minutes for the agent's test run.\n")
     add("## How little this can show\n")
     add("**20 test questions is few.** 16 can be answered, so one answer is about 6 points. 4 must be refused, so one refusal is 25 points.\n")
     add("Taking the same questions one by one, and leaving out those where both are complete or neither is:\n")

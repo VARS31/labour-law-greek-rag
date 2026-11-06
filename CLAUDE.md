@@ -39,6 +39,7 @@ Same list as README.md "Status"; keep the two in sync.
 - 4A: final test runs: one-shot v2 and the frozen agent, one run each, compared with the Phase 2 baseline (**done**,
   [docs/final-report.md](docs/final-report.md))
 - 4B: Claude Haiku as Judge and Writer, chosen per run, with a budget guard in code (**done**, [docs/final-report.md](docs/final-report.md), [docs/models.md](docs/models.md))
+- 4B.1: `--haiku` on ask and agent, the key checked before any search, a separate record of manual runs, and `agent-mixed` as a dev-only diagnostic (**done**, [docs/final-report.md](docs/final-report.md))
 - 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
@@ -102,7 +103,7 @@ Next: a larger fresh test set is a later option; then Phase 5.
 
 ## Answering (Phase 1C)
 
-- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks] [--fusion rrf] [--embedding bge-m3]`: `retrieve.py` (top 30, by default from
+- `.venv/bin/python -m labour_rag.ask "…" [--show-chunks] [--fusion rrf] [--embedding bge-m3] [--haiku]`: `retrieve.py` (top 30, by default from
   semantic search alone → skip repeats and a 3rd chunk per document → 8 chunks) → one `chat()` call → `citations.check`.
   `search.hybrid` stays equal-weight RRF, and `scripts/answer_report.py` pins `fusion="rrf"` and bge-m3, so the Phase 1B and 1C reports
   describe what they measured.
@@ -158,7 +159,7 @@ Next: a larger fresh test set is a later option; then Phase 5.
 
 ## Agent (Phase 3C)
 
-- `labour_rag/agent.py` is the LangGraph graph: `.venv/bin/python -m labour_rag.agent "…" [--trace]`. Its nodes close over the connection and the client. It switches LangSmith tracing
+- `labour_rag/agent.py` is the LangGraph graph: `.venv/bin/python -m labour_rag.agent "…" [--trace] [--haiku]`. Its nodes close over the connection and the client. It switches LangSmith tracing
   off before importing LangGraph; keep that first.
 - `labour_rag/judge.py`: one `chat()` call at temperature 0 with a JSON schema; the last round's schema can't say `search_again`. Instructions in `prompts/judge.md`; the user edits it, and its
   example must stay off the test set (`tests/test_agent.py` checks). Approved means relevant or partly, doesn't fail to apply, and isn't replaced by a really newer approved act.
@@ -168,14 +169,14 @@ Next: a larger fresh test set is a later option; then Phase 5.
   because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
 - `docs/how-a-question-is-answered.md` states every rule in plain words and traces one question. It's written by hand, so a change to the agent means changing it too.
 - **The agent is frozen at the local tag `agent-frozen-3c1`, and that's what its test run measured.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`.
-  `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing, and `evaluate` checks that itself (`frozen_changes`). New files don't count: the Haiku client sits next to the frozen code. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
+  `evaluate` checks this itself (`frozen_changes`). New files don't count, because the Haiku code sits next to the frozen code. In `ask.py` and `agent.py` only `main()` and the docstring may change, for the `--haiku` flag: it compares those two without them, and everything else with `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql`, leaving out `evaluate.py`. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
 - Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
   started from Claude's session stops when the session does, unless started detached (`nohup caffeinate -ims …`), and continues if started again the same day. The 3C.1 run has its own name, `--name agent-3c1-qwen3-4b-semantic-units-limit4-dev`, so that it didn't continue the 3C run.
 - Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `FIXES`, `CHANGED`, `FIXES_NOTES`, `RESULT`, `ROUNDS`, `FAILURES`, `NEXT` and `LIMITS`, from reading the answers, with the verdicts from `eval/hand_read.json`; the script stops if the claims it checks stop holding.
 
 ## Final comparison (Phases 4A and 4B)
 
-- `.venv/bin/python -I scripts/final_report.py` rewrites `docs/final-report.md` from the ten stored runs and `eval/hand_read.json`, with no model or database. Hand-written: `SHORT_VERSION`, `SYSTEMS_TEXT`, `TABLE_NOTES`, `UNSUPPORTED_TEXT`, `SHOWS`, `OVERTIME`, `PAIRS_TEXT`, `LIMITS`, `HOW_RUN`, `NEXT` and `EVIDENCE`.
+- `.venv/bin/python -I scripts/final_report.py` rewrites `docs/final-report.md` from the ten stored runs, `agent-mixed`'s and `eval/hand_read.json`, with no model or database. Hand-written: `SHORT_VERSION`, `SYSTEMS_TEXT`, `TABLE_NOTES`, `UNSUPPORTED_TEXT`, `SHOWS`, `JUDGE_TEXT`, `OVERTIME`, `PAIRS_TEXT`, `LIMITS`, `HOW_RUN`, `NEXT` and `EVIDENCE`.
   It stops if a claim stops holding, or if the two tables in README.md differ from its own.
 - `eval/hand_read.json` holds the verdict on every answer scored complete, and each blind reader's unsupported claims. Where the two readers agree, their verdict stands; where they differ it's a ruling, marked `ruled`. `scripts/agent_report.py` takes its verdicts from there too.
 - The hand rule, the same for all systems: an answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included. Mistakes outside the key facts are listed as unsupported claims, not counted as fails.
@@ -184,9 +185,11 @@ Next: a larger fresh test set is a later option; then Phase 5.
 ## Haiku (Phase 4B)
 
 - `labour_rag/haiku_client.py` has the same `chat()` as `ModelClient`. The Judge's and the Writer's calls go to `claude-haiku-5-5` through the official SDK; the Enhancer (recognised by `enhancer.SCHEMA`) and embeddings go to the local client. No frozen file changes. Same prompts; no temperature, no seed, thinking at the model's default effort, no tuning. Runs aren't exactly repeatable.
-- **The key:** `ANTHROPIC_API_KEY` in `.env`. Never open, print or log it. Only check that it's set: `.venv/bin/python -m labour_rag.haiku_client` says yes or no, and makes one tiny call.
-- **Budget guard:** `labour_rag/budget.py`, $1 per run and $3 across all of 4B, counted after every call, total on disk in `eval/haiku_spend.json`. Stops cleanly before a call that could pass a limit, and the run can continue. A later phase that spends more needs the owner's new limits.
-- **Freeze:** `evaluate` refuses a Haiku run (except a try with `--ids`) unless the code matches both `agent-frozen-3c1` and `haiku-frozen-4b`, and refuses its test run until its dev run has finished. `--system oneshot-haiku` and `--system agent-haiku` have used their test runs.
+- **The key:** `ANTHROPIC_API_KEY` in `.env`. Never open, print or log it. Every Haiku run (ask, agent, evaluate) checks it before any search with `haiku_runs.check_key`, which uses no tokens. Missing or rejected, the run stops with a message naming the variable, never mentions Ollama, and leaves no result folder. Don't use `python -m labour_rag.haiku_client` as a check: it makes a paid call and writes to the measuring ledger.
+- **Budget guard:** `labour_rag/budget.py`, $1 per run and $3 across all of 4B, counted after every call, total on disk in `eval/haiku_spend.json`, the record of the measuring runs only. Stops cleanly before a call that could pass a limit, and the run can continue. A later phase that spends more needs the owner's new limits.
+- **Manual runs:** `--haiku` on `ask` and `agent` goes through `haiku_runs.manual_run`. It prints what leaves the machine at the start and this question's cost at the end, and counts in `data/haiku_manual_spend.json` (gitignored), with its own $2 limit. `ask --haiku` prints "Writer:" and not "Judge + Writer:", because the one-shot has no Judge.
+- **`agent-mixed`:** local Judge, Haiku Writer (`haiku_runs.MixedClient`: any call with a schema stays local). A dev-only diagnostic: `TEST_SETTINGS` leaves it out, so `evaluate` refuses it on test. Its dev run has been made.
+- **Freeze:** `evaluate` refuses a Haiku run (except a try with `--ids`) unless the code matches both `agent-frozen-3c1` and `haiku-frozen-4b`, and refuses its test run until its dev run has finished. `--system oneshot-haiku` and `--system agent-haiku` have used their test runs. `haiku_client.py` and `budget.py` stay as they were measured: what surrounds them is in `haiku_runs.py`.
 
 ## Code
 

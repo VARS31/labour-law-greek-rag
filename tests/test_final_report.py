@@ -2,7 +2,7 @@
 
 import unittest
 
-from scripts.final_report import EVIDENCE, READ, SPLITS, SYSTEMS, WRONG_THOUGH_COMPLETE, failure_of
+from scripts.final_report import EVIDENCE, MIXED, READ, SPLITS, SYSTEMS, WRONG_THOUGH_COMPLETE, failure_of
 
 
 def record(item="single-01", fact_share=1.0, refused=False, answerable=True, in_context=True, gold_judged=True):
@@ -29,11 +29,11 @@ class FailureOfOneShot(unittest.TestCase):
 
 class FailureOfAgent(unittest.TestCase):
     def test_read_as_wrong_with_the_right_chunk_is_the_writers(self):
-        for system in ("agent", "agent-haiku"):
+        for system in ("agent", "agent-haiku", MIXED):
             self.assertEqual(failure_of(system, record(), {"single-01": "reason"}), "writer")
 
     def test_held_back_by_the_judge(self):
-        for system in ("agent", "agent-haiku"):
+        for system in ("agent", "agent-haiku", MIXED):
             self.assertEqual(failure_of(system, record(fact_share=0.0, refused=True, in_context=False), {}), "judge")
 
     def test_never_reached_the_judge(self):
@@ -54,8 +54,8 @@ class Verdicts(unittest.TestCase):
 
     def test_a_verdict_stands_when_both_readers_agree_and_is_ruled_only_when_they_differ(self):
         for split in SPLITS:
-            for system in SYSTEMS:
-                for item, entry in READ[split][system].items():
+            for system, items in READ[split].items():
+                for item, entry in items.items():
                     agreed = entry["reader_a"]["verdict"] == entry["reader_b"]["verdict"]
                     self.assertEqual(entry["ruled"], not agreed, item)
                     if agreed:

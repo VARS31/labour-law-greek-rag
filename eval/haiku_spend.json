@@ -1,5 +1,5 @@
 {
- "total": 0.3499385,
+ "total": 0.4067983,
  "runs": {
   "key-check": {
    "spent": 3.7e-06,
@@ -42,6 +42,18 @@
    "calls": 44,
    "input_tokens": 413650,
    "output_tokens": 100863
+  },
+  "2026-11-06_smoke-agent-mixed": {
+   "spent": 0.00352,
+   "calls": 1,
+   "input_tokens": 8585,
+   "output_tokens": 5323
+  },
+  "2026-11-06_agent-mixed-qwen3-4b-semantic-units-limit4-dev": {
+   "spent": 0.0533398,
+   "calls": 27,
+   "input_tokens": 160138,
+   "output_tokens": 74652
   }
  }
 }

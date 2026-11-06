@@ -2,7 +2,7 @@
 
 Phases 4A and 4B. Five systems, the same questions, the same prompts. `scripts/final_report.py` writes this file from the stored runs and `eval/hand_read.json`, so don't edit it by hand.
 
-**In short.** Replacing the local Judge and Writer with Claude Haiku is the first change in this project that shows up in complete answers on the test questions. Read by hand, complete answers on test go from 5 to 10 of 16 for the one-shot, and from 4 to 10 for the agent. On dev they go from 9 to 15 of 26, and from 12 to 17. Haiku's complete answers also say less that their sources don't support: on both sets together, 7 of 25 against 11 of 14 for the one-shot, and 6 of 27 against 9 of 16 for the agent. A full test run cost $0.04 and $0.09, and took less time than the local ones. With Haiku writing, the agent adds little to complete answers (10 against 10 on test, 17 against 15 on dev), but it makes no wrong refusals where one-shot Haiku makes 4. These sets are still small, the test questions have been read before, and the readers are Claude models judging a Claude model: see [How little this can show](#how-little-this-can-show).
+**In short.** Replacing the local Judge and Writer with Claude Haiku is the first change in this project that shows up in complete answers on the test questions. Read by hand, complete answers on test go from 5 to 10 of 16 for the one-shot, and from 4 to 10 for the agent. On dev they go from 9 to 15 of 26, and from 12 to 17. Haiku's complete answers also say less that their sources don't support: on both sets together, 7 of 25 against 11 of 14 for the one-shot, and 6 of 27 against 9 of 16 for the agent. A full test run cost $0.04 and $0.09, and took less time than the local ones. With Haiku writing, the agent adds little to complete answers (10 against 10 on test, 17 against 15 on dev), but it makes no wrong refusals where one-shot Haiku makes 4. A dev-only diagnostic says the Judge needn't be Haiku for complete answers, but Haiku's Judge is about 4 times faster ([details](#does-the-judge-need-to-be-haiku)). These sets are still small, the test questions have been read before, and the readers are Claude models judging a Claude model: see [How little this can show](#how-little-this-can-show).
 
 ## The five systems
 
@@ -106,6 +106,34 @@ Anyone relying on these answers should still check the source. Every claim from 
 - **Haiku is faster here, and costs little.** The median question takes 10 s and 21 s on test, against 49 s and 118 s on the local model. That's one laptop against a paid service, so it says nothing about other machines.
 - **The local agent's lead on dev still didn't carry over.** It leads the local one-shot 12 to 9 on dev, and trails it 4 to 5 on test. That's a gap of one answer on test, but dev isn't a fair place for it: its rules were built while reading those answers.
 
+## Does the Judge need to be Haiku?
+
+`agent-mixed` is the agent with a local Judge and a Haiku Writer, and nothing else changed. It ran on the dev questions only and doesn't touch test, so it's a diagnostic and not a result like the five above. Two more fresh readers read its complete answers blind, shuffled with 41 answers already read. They differed once, on the local agent's `single-23`, which I ruled a fail as before. Otherwise, on those 41, they matched every stored verdict and every flag of an unsupported claim. That shows how consistent one model is with itself, not that its readers are independent.
+
+| Dev | Agent | Agent-mixed | Agent Haiku | One-shot Haiku |
+|---|---:|---:|---:|---:|
+| Judge | local | local | Haiku | none |
+| Writer | local | Haiku | Haiku | Haiku |
+| **Complete answers, read by hand** | **12 of 26** | **17 of 26** | **17 of 26** | **15 of 26** |
+| Of those, with a claim their sources don't support | 7 | 3 | 3 | 5 |
+| Wrong refusals | 1 of 26 | 2 of 26 | 0 of 26 | 3 of 26 |
+| Correct refusals | 5 of 6 | 5 of 6 | 5 of 6 | 5 of 6 |
+| Right chunk reached the Writer | 24 of 27 | 24 of 27 | 25 of 27 | 22 of 27 |
+| Questions using 1 / 2 / 3 rounds | 26 / 4 / 2 | 26 / 4 / 2 | 28 / 3 / 1 | - |
+| Time per question (median) | 141 s | 76 s | 20 s | 12 s |
+| Time for the whole run | 94 min | 58 min | 11 min | 6 min |
+| Cost of the whole run | $0.00 | $0.05 | $0.13 | $0.08 |
+
+**On these questions, not for complete answers or unsupported claims.** With a local Judge and a Haiku Writer, the agent has 17 complete answers, 3 of them with an unsupported claim, the same counts as agent Haiku. Question by question it's 3 each way, so the two can't be told apart. But the local Judge doesn't give all of the agent's value.
+
+- **The Writer is the whole gain from the local agent to agent-mixed.** The local Judge made the same decisions and approved the same chunks in both runs, on all 32 questions, so the same chunks reached both Writers. Complete answers go from 12 to 17: 7 questions complete only with Haiku writing, and 2 only with the local Writer.
+- **Searching again: the local Judge does it, and more than Haiku's.** It uses extra rounds on 6 questions, Haiku's on 4. Both find the right chunk in round 2 on `single-09`. Haiku's also finds it on `lookup-01`. The code's stop rule fired 5 times on the local Judge and never on Haiku's, because Haiku's Judge stops searching by itself.
+- **No wrong refusals: the local Judge doesn't give that.** It has 2 against 0, but only one is a real difference. On `lookup-01`, Haiku's Judge approves a chunk from the right law as partly relevant, and the agent's rule of reading the articles next to an approved chunk finds the right one. The local Judge approves nothing from that law, so that rule never fires, and it refuses after 3 rounds. On `vocab-01` the right chunk reaches no one. The Haiku Writer says it found nothing after the local Judge, while agent Haiku writes an answer with none of the key facts, and that isn't clearly better.
+- **What Haiku's Judge buys is speed.** The median question takes 20 s against 76 s, and the whole run 11 minutes against 58. The local Judge is 88% of agent-mixed's time, and it saves only about $0.08 per run, so for a demo agent Haiku is the better choice.
+- **Against one-shot Haiku, the local Judge keeps part of the agent's value.** 17 complete answers against 15, the right chunk for 24 against 22, and 2 wrong refusals against 3.
+
+**Why not to lean on this.** It's one run on 26 questions that can be answered. The agent's rules, among them the stop rule and the reading further in round 2, were built on dev with this same local Judge, so dev flatters it. The stored test runs hint the other way: there the local Judge refused `single-25` and `vocab-04` with the right chunk in places 1 and 2, and Haiku's Judge refused neither. Agent-mixed didn't run on test, so what it would do there isn't known.
+
 ## The overtime question
 
 `reference-01` asks a factory worker's rate for overtime. The right answer says the general rate is in article 1 of Ν. 435/1976, and that its text isn't in our data. All five systems answer instead, so all five fail it.
@@ -124,8 +152,9 @@ The same confusion shows elsewhere. On `single-14`, one-shot Haiku's answer pass
 | One-shot Haiku | test | 20 | 20 | 197,853 | 47,873 | 73% | $0.0437 | $0.0022 | 3.5 min |
 | Agent Haiku | dev | 32 | 64 | 558,725 | 147,855 | 64% | $0.1298 | $0.0041 | 11.4 min |
 | Agent Haiku | test | 20 | 44 | 413,650 | 100,863 | 62% | $0.0918 | $0.0046 | 8.0 min |
+| Agent-mixed (local Judge) | dev | 32 | 27 | 160,138 | 74,652 | 75% | $0.0533 | $0.0017 | 57.7 min |
 
-Everything spent in Phase 4B, with the key check and two trial questions, comes to **$0.35** of the $3 limit. That counts the calls to Haiku, not the work of reading the answers. Haiku's thinking is most of its output and is billed as output, which is why a call costs about $0.002 and not the fraction of that the visible answer would suggest. In the agent's Haiku test run, the Judge takes 55% of the time, the Writer 36% and the local Query Enhancer 7%. The local systems cost no money here, but they tie up the machine: 52 minutes for the agent's test run.
+Everything spent on measuring in Phase 4B, with the key check and three trial questions, comes to **$0.41** of the $3 limit. That counts the calls to Haiku, not the work of reading the answers. Haiku's thinking is most of its output and is billed as output, which is why a call costs about $0.002 and not the fraction of that the visible answer would suggest. In the agent's Haiku test run, the Judge takes 55% of the time, the Writer 36% and the local Query Enhancer 7%. The local systems cost no money here, but they tie up the machine: 52 minutes for the agent's test run.
 
 ## How little this can show
 
@@ -204,10 +233,10 @@ Test answers are listed by id only. Those scored incomplete weren't read.
 ## How the runs were made
 
 - **The guard.** `labour_rag/evaluate.py` lets each named system use the test split once, and only with its own settings. A Haiku system must also have finished the dev questions first.
-- **The freeze.** The Haiku client is new files next to the frozen code, and no frozen file changed: `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` prints nothing. The same check against the tag `haiku-frozen-4b`, set before the first dev run, also prints nothing, so nothing changed between dev and test. `evaluate` checks both itself.
-- **The budget guard.** $1 per run and $3 across all of 4B, in `labour_rag/budget.py`, on top of a $10 monthly limit on the workspace. It counts real usage after every call, keeps the total on disk in [`eval/haiku_spend.json`](../eval/haiku_spend.json), and doesn't make a call that could pass a limit. It never had to stop anything.
-- **The key.** The code reads it only to hand it to the SDK. I never saw it: it wasn't opened by hand, printed or logged. One tiny call confirmed it worked, for $0.000004.
-- **The runs.** Haiku's ran on 2026-11-06, detached from the session, one after the other, with no other model job, and each answered every question. The local test runs are from 2026-11-05, and the baseline's from 2026-11-04.
+- **The freeze.** The Haiku code is new files next to the frozen code. The one change to frozen files is the `--haiku` flag, in the `main()` of `ask.py` and `agent.py`. It came after the runs of the five systems and before `agent-mixed`'s, and it doesn't touch what decides an answer. `evaluate` compares those two files without their `main()`, and everything else with `git diff --diff-filter=a`, against both `agent-frozen-3c1` and `haiku-frozen-4b`, the tag set before Haiku's first dev run. Nothing else has changed since either tag.
+- **The budget guard.** $1 per run and $3 across all of 4B, in `labour_rag/budget.py`, on top of a $10 monthly limit on the workspace. It counts real usage after every call, keeps the total on disk in [`eval/haiku_spend.json`](../eval/haiku_spend.json), and doesn't make a call that could pass a limit. It never had to stop anything. Manual `--haiku` runs have their own record and $2 limit, in the gitignored `data/haiku_manual_spend.json`.
+- **The key.** The code reads it only to hand it to the SDK. I never saw it: it wasn't opened by hand, printed or logged. One tiny call first confirmed it worked, for $0.000004. Since then, every Haiku run checks it before any search, with a call that uses no tokens.
+- **The runs.** Haiku's and `agent-mixed` ran on 2026-11-06, detached from the session, one after the other, with no other model job, and each answered every question. The local test runs are from 2026-11-05, and the baseline's from 2026-11-04.
 - **Two corrections.** The Phase 3C report said 15 complete answers against 12 on dev. Phase 4A made that 13 against 9. The blind read makes it 12 against 9. [The agent report](agent-report.md) is corrected.
 
 ## What comes next

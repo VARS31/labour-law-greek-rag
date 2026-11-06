@@ -19,6 +19,7 @@ Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real resc
 Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
 Phase 4A  Final test runs, three systems side by side .. done   test: agent 4 of 16 complete vs 5 and 5, too few to separate them
 Phase 4B  Claude Haiku as Judge and Writer, budget guard . done   test: 10 of 16 complete on both, vs 5 and 4 local, $0.35 in all
+Phase 4B.1 --haiku for demos, key check, agent-mixed ...... done   dev: local Judge + Haiku Writer 17 of 26, same as agent Haiku, 58 min vs 11
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
 
@@ -396,6 +397,43 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 - Check who is marking the work. The blind readers are Claude, and so is Haiku. Hidden labels don't hide a writing style, so this result needs a human reader before I fully trust it.
 - A small, cheap trial before freezing code catches what estimates miss. One question each showed the thinking cost before any full run.
 - A larger fresh test set is now the most useful next step: only large gaps mean much on 16 questions.
+
+---
+
+## Phase 4B.1: Haiku for demos, and the Judge question
+
+**Goal:** make Haiku easy to try on one question, make its failures clear, keep demos out of the measuring record, and answer one question: does the Judge need to be Haiku, or does a local Judge give the agent its value as well?
+
+**What we did:** `--haiku` on `ask` and `agent`, in their `main()` only → every Haiku run checks the key before any search, with a call that uses no tokens → manual runs counted in a gitignored file with their own $2 limit → the freeze check now compares `ask.py` and `agent.py` without `main()`, so it proves only the command line changed → `agent-mixed`, a local Judge with a Haiku Writer, run once on dev only → two more fresh blind readers → a section in [final-report.md](final-report.md), the code tour, the README and [models.md](models.md). The tags didn't move.
+
+**Key numbers (dev only):**
+
+| Measure | Agent | Agent-mixed | Agent Haiku | One-shot Haiku |
+|---|---:|---:|---:|---:|
+| Judge / Writer | local / local | local / Haiku | Haiku / Haiku | none / Haiku |
+| Complete, read by hand | 12 of 26 | 17 of 26 | 17 of 26 | 15 of 26 |
+| Of those, with an unsupported claim | 7 | 3 | 3 | 5 |
+| Wrong refusals | 1 | 2 | 0 | 3 |
+| Right chunk reached the Writer | 24 of 27 | 24 of 27 | 25 of 27 | 22 of 27 |
+| Questions using 1 / 2 / 3 rounds | 26 / 4 / 2 | 26 / 4 / 2 | 28 / 3 / 1 | - |
+| Median time | 141 s | 76 s | 20 s | 12 s |
+| Whole run | 94 min | 58 min | 11 min | 6 min |
+| Cost | - | $0.05 | $0.13 | $0.08 |
+
+**Findings**
+- **The Judge doesn't need to be Haiku for complete answers, on dev.** 17 against 17, 3 with an unsupported claim on each, and 3 questions each way. Both have the same counts for different answers.
+- **The Writer is the whole gain from the local agent.** The local Judge made the same decisions on all 32 questions in both runs, so the same chunks reached both Writers: 12 to 17 complete, 7 questions to 2.
+- **It searches again, but doesn't give "no wrong refusals".** The local Judge uses extra rounds on 6 questions, Haiku's on 4, and the code's stop rule fires 5 times on it and never on Haiku's. It has 2 wrong refusals against 0, but only `lookup-01` is a real difference: Haiku's Judge approves a chunk from the right law as partly relevant, and reading the next articles finds the right one. On `vocab-01` no one has the right chunk: the Writer says so after the local Judge, and agent Haiku writes an answer with no key facts.
+- **What Haiku's Judge buys is speed.** About 4 times faster, for $0.08 more per run. For a demo, agent Haiku is the better choice.
+- **Don't lean on this.** Dev only, and the agent's rules were built on dev with this same local Judge, so dev flatters it. On test, the local Judge wrongly refused 2 questions where Haiku's refused none. Agent-mixed didn't run there.
+- **The readers are consistent.** On 41 answers read before, they matched every verdict and every flag, apart from one disagreement between them that I ruled the same way as before. They touched only their own files. That shows one model agreeing with itself, not independent readers.
+
+**Decisions:** `ask --haiku` prints "Writer:" and not "Judge + Writer:", because the one-shot has no Judge. Manual runs live in `data/`, already gitignored. The freeze check was made more exact, not weaker: anything outside `main()` in those two files still refuses a run. `haiku_client.py` and `budget.py` weren't touched.
+
+**Lessons**
+- A two-by-two split of one change tells you more than the change itself. Swapping both models showed Haiku helps. Swapping one at a time showed which one.
+- A guard should fail for the right reason. An empty key used to come out as "Connection error. Is Ollama running?", which is true of nothing. Check what a failure really says.
+- Rules depend on the model that met them. The stop rule was built for a Judge that keeps searching, and Haiku's Judge never needs it.
 
 ---
 

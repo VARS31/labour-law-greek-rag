@@ -9,7 +9,7 @@ parts:
   to a local model, citing the chunks it used and checking those citations.
 - **Phase 2** measures all of that on a fixed set of questions with written-down answers.
 
-Phases 3A to 3C.1 follow, and they end with the agent as it is now. To see what the agent does with one question, step by step, read
+Phases 3A to 3C.1 follow, and they end with the agent as it is now. Phases 4A and 4B come after that: the final test runs, and Claude Haiku as an option. To see what the agent does with one question, step by step, read
 [How a question is answered](how-a-question-is-answered.md).
 
 A few words used below:
@@ -540,6 +540,46 @@ No step of answering changed. This phase measures: one run each on the test ques
 
 **Tests:** `tests/test_evaluate.py` gained `WhoMayUseTheTestSplit` (only those two systems, only with their own settings) and `FrozenCode` (a change to frozen code is seen, a change to `evaluate.py` isn't). `tests/test_final_report.py` checks how failures are shared out between search, Judge and Writer, including answers that fail only when read.
 
+## Phase 4B: Claude Haiku as an option
+
+The agent's logic doesn't change, and neither do the prompts. Everything still runs locally unless a run asks for Haiku. With Haiku, the question and the law chunks leave this machine. [Models](models.md) says which model does what and what it costs. The results are in [the final report](final-report.md).
+
+### What's new in the code
+
+- **`labour_rag/haiku_client.py`** talks to Claude Haiku through Anthropic's official package.
+  a list of messages → the model's answer. It has the same `chat()` as the local client, so the agent and the one-shot can't tell which one they have. The Judge's and the Writer's calls go to Haiku. The Query Enhancer's call and all embeddings go to the local models.
+- **`labour_rag/budget.py`** is the budget guard.
+  the real token counts of a call → dollars, added to a running total on disk. Before each call it asks whether the next one could pass a limit, and if so the run stops cleanly and can continue later.
+- **`labour_rag/haiku_runs.py`** holds what surrounds the client.
+  - `check_key`: → nothing if the key works, or a stop with a clear message naming `ANTHROPIC_API_KEY` if it's missing or rejected. It uses no tokens, so it's free, and every Haiku run does it before any search.
+  - `MixedClient`: the same as the Haiku client, but the Judge stays local too. Only the Writer goes to Haiku. This is `agent-mixed`.
+  - `manual_run`: one question from the command line. It checks the key, says what leaves the machine, hands over the client, and says at the end what the question cost.
+- **`labour_rag/evaluate.py`** knows the new named systems: `oneshot-haiku`, `agent-haiku` and `agent-mixed`.
+  - It checks the key before any search and before a test run is claimed.
+  - It makes a run's folder when the first answer is saved, so a run that stops before that leaves no empty folder.
+  - A Haiku failure stops the run with its own message, which doesn't mention Ollama.
+  - `frozen_changes` compares `ask.py` and `agent.py` without their `main()`, so it proves that only their command line changed.
+- **`labour_rag/ask.py` and `labour_rag/agent.py`** gained the `--haiku` flag, in their `main()` only.
+
+### The flag
+
+```bash
+.venv/bin/python -m labour_rag.ask "Πόσες μέρες άδεια δικαιούμαι;" --haiku
+.venv/bin/python -m labour_rag.agent "Πόσες μέρες άδεια δικαιούμαι;" --haiku --trace
+```
+
+With `ask`, Haiku writes the answer. With `agent`, it's the Judge and the Writer, and `--trace` works as it does locally. Without the flag, nothing changes and nothing leaves the machine.
+
+These manual runs have their own record, `data/haiku_manual_spend.json`, with its own $2 limit. `data/` is gitignored, so demos don't show up as git changes. `eval/haiku_spend.json` is the record of the measuring runs only.
+
+### The scripts
+
+- **`scripts/final_report.py`** sets the systems side by side.
+  the stored runs + `eval/hand_read.json` → `docs/final-report.md`. It stops if a claim no longer matches the runs, or if the tables in the README differ from its own.
+- **`eval/hand_read.json`** isn't a script but belongs here: every answer scored complete, each blind reader's verdict and the claims its sources don't support. `scripts/agent_report.py` takes its verdicts from there too.
+
+**Tests:** `tests/test_haiku.py` uses a stand-in for Anthropic's package, so no test makes a real call or needs a key. It covers the prices, the budget guard across a resumed run, which call goes where on each system, the key check, the flag, and that a run that stops early leaves no folder. `tests/test_evaluate.py` gained the new freeze rules: a change to `main()` in `ask.py` passes, and any other change there shows.
+
 ## Running the tests
 
 ```bash
@@ -547,7 +587,7 @@ No step of answering changed. This phase measures: one run each on the test ques
 ```
 
 A test is a small example with a known right answer: "this input must give exactly this output". There
-are 226 of them, almost all with real strings from the data, and they run in a few seconds. If a later
+are 281 of them, almost all with real strings from the data, and they run in a few seconds. If a later
 change breaks one of the rules above, a test fails and says which one.
 
 ## How to explain Phase 1A in an interview
