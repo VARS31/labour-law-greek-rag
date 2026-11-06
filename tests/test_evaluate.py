@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from labour_rag.evaluate import (FROZEN_TAG, HAIKU_TAG, TEST_SETTINGS, claim_test_run, config_name, dev_run_finished, first_rank, frozen_changes, frozen_refusal, gold_documents,
+from labour_rag.evaluate import (FROZEN_TAG, HAIKU_TAG, TEST_SETTINGS, claim_test_run, config_name, dev_run_finished, first_rank, frozen_changes, frozen_refusal, gold_documents, without_main,
                                  problem, score_answer, score_retrieval, summarise_group, test_run_refusal)
 from labour_rag.key_facts import fact_present, stem
 from scripts.check_eval_set import copied_run, quote_in
@@ -124,6 +124,9 @@ class WhoMayUseTheTestSplit(unittest.TestCase):
             self.assertIn(next(iter(change)), test_run_refusal("oneshot-v2", {**v2, **change}))
         self.assertIn("max_per_document", test_run_refusal("agent", {**TEST_SETTINGS["agent"], "max_per_document": 2}))
 
+    def test_agent_mixed_stays_off_the_test_split(self):
+        self.assertIn("no test run left", test_run_refusal("agent-mixed", TEST_SETTINGS["agent-haiku"]))
+
     def test_a_haiku_system_has_the_same_settings_as_its_local_one(self):
         self.assertEqual(TEST_SETTINGS["oneshot-haiku"], TEST_SETTINGS["oneshot-v2"])
         self.assertEqual(TEST_SETTINGS["agent-haiku"], TEST_SETTINGS["agent"])
@@ -172,6 +175,32 @@ class FrozenCode(unittest.TestCase):
         self.git("tag", FROZEN_TAG)
         self.judge.unlink()
         self.assertIn("judge.py", frozen_changes(self.root))
+
+    def add_ask(self, source="def ask():\n    return 1\n\n\ndef main():\n    ask()\n"):
+        (self.root / "labour_rag/ask.py").write_text(source, encoding="utf-8")
+        self.git("add", ".")
+        self.git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "ask")
+        self.git("tag", FROZEN_TAG)
+
+    def test_the_command_line_of_ask_may_change(self):
+        self.add_ask()
+        (self.root / "labour_rag/ask.py").write_text('"""Now with a flag."""\n\n\ndef ask():\n    return 1\n\n\ndef main():\n    print("--haiku")\n    ask()\n', encoding="utf-8")
+        self.assertEqual(frozen_changes(self.root), "")
+
+    def test_anything_else_in_ask_shows(self):
+        self.add_ask()
+        (self.root / "labour_rag/ask.py").write_text("def ask():\n    return 2\n\n\ndef main():\n    ask()\n", encoding="utf-8")
+        self.assertIn("ask.py changed outside main()", frozen_changes(self.root))
+
+    def test_a_new_function_in_ask_shows(self):
+        self.add_ask()
+        (self.root / "labour_rag/ask.py").write_text("def ask():\n    return 1\n\n\ndef other():\n    pass\n\n\ndef main():\n    ask()\n", encoding="utf-8")
+        self.assertIn("ask.py changed outside main()", frozen_changes(self.root))
+
+    def test_a_deleted_ask_shows(self):
+        self.add_ask()
+        (self.root / "labour_rag/ask.py").unlink()
+        self.assertIn("ask.py", frozen_changes(self.root))
 
     def test_a_haiku_system_needs_both_tags(self):
         self.git("tag", FROZEN_TAG)

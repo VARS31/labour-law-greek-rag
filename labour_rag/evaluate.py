@@ -19,9 +19,11 @@ ANTHROPIC_API_KEY in .env. They run on dev first, then once on test, with a budg
 
     .venv/bin/python -m labour_rag.evaluate --split dev --system oneshot-haiku
     .venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku
+    .venv/bin/python -m labour_rag.evaluate --split dev --system agent-mixed        # local Judge, Haiku Writer; dev only
 """
 
 import argparse
+import ast
 import datetime
 import json
 import statistics
@@ -36,7 +38,7 @@ from .config import ROOT
 from .db import connect, friendly_errors
 from .embeddings import DEFAULT_EMBEDDING, EMBEDDINGS, embed_question
 from .key_facts import fact_present
-from .model_client import ModelClient
+from .model_client import ModelClient, ModelError
 from .retrieve import CONTEXT_CHUNKS, MAX_PER_DOCUMENT, NUMBER_RULE, NUMBER_RULES, POOL, select
 
 QUESTIONS = ROOT / "eval/questions.jsonl"
@@ -308,15 +310,16 @@ def evaluate_agent_item(conn, client, item, config, stored_output=None):
 
 # The named systems, and how each answers one question. "one-shot" with its old settings is the Phase 2 baseline.
 SYSTEMS = {"one-shot": evaluate_item, "oneshot-v2": evaluate_item, "agent": evaluate_agent_item,
-           "oneshot-haiku": evaluate_item, "agent-haiku": evaluate_agent_item}
-AGENT_SYSTEMS = {"agent", "agent-haiku"}
-HAIKU_SYSTEMS = {"oneshot-haiku", "agent-haiku"}
+           "oneshot-haiku": evaluate_item, "agent-haiku": evaluate_agent_item, "agent-mixed": evaluate_agent_item}
+AGENT_SYSTEMS = {"agent", "agent-haiku", "agent-mixed"}
+HAIKU_SYSTEMS = {"oneshot-haiku", "agent-haiku", "agent-mixed"}
 AGENT_LIMIT = 4         # agent.LIMIT, here so that importing this module doesn't import LangGraph
 FROZEN_TAG = "agent-frozen-3c1"
 HAIKU_TAG = "haiku-frozen-4b"       # the Haiku client as it was before its first dev run: nothing may change between dev and test
 ONE_SHOT_SETTINGS = {"fusion": "semantic", "number_rule": "units", "enhancer": None, "max_per_document": 2, "embedding": "qwen3-4b"}
 AGENT_SETTINGS = {**ONE_SHOT_SETTINGS, "max_per_document": AGENT_LIMIT}
-# The systems allowed a test run, and the settings that make them that system.
+COMMAND_LINE_ONLY = ("labour_rag/ask.py", "labour_rag/agent.py")     # frozen too, but their main() may change: the --haiku flag
+# The systems allowed a test run, and the settings that make them that system. agent-mixed isn't one: it's a dev-only diagnostic.
 TEST_SETTINGS = {"oneshot-v2": ONE_SHOT_SETTINGS, "agent": AGENT_SETTINGS, "oneshot-haiku": ONE_SHOT_SETTINGS, "agent-haiku": AGENT_SETTINGS}
 
 
@@ -329,13 +332,31 @@ def test_run_refusal(system, config):
     return f"{system}'s test run must use its own settings, and these differ: {', '.join(different)}." if different else None
 
 
+def without_main(source):
+    """A Python file without its docstring and main(): the part that decides an answer."""
+    tree = ast.parse(source)
+    body = [node for node in tree.body if not (isinstance(node, ast.FunctionDef) and node.name == "main")]
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+        body = body[1:]
+    return ast.dump(ast.Module(body=body, type_ignores=[]))
+
+
 def frozen_changes(root=ROOT, tag=FROZEN_TAG):
-    """What has changed in the frozen files since the tag, as git diff prints it. Empty means nothing has, which a test run needs, also
-    when a stopped run continues. A new file isn't a change: the Haiku client sits next to the frozen code and doesn't touch it. If git
-    can't tell, that counts as a change."""
-    done = subprocess.run(["git", "diff", "--diff-filter=a", tag, "--", "labour_rag", "prompts", "sql", ":!labour_rag/evaluate.py"],
+    """What has changed in the frozen files since the tag. Empty means nothing has, which a test run needs, also when a stopped run
+    continues. A new file isn't a change: the Haiku client sits next to the frozen code and doesn't touch it. In the files of
+    COMMAND_LINE_ONLY, only a change outside main() counts. If git can't tell, that counts as a change."""
+    done = subprocess.run(["git", "diff", "--diff-filter=a", tag, "--", "labour_rag", "prompts", "sql", ":!labour_rag/evaluate.py", *(f":!{path}" for path in COMMAND_LINE_ONLY)],
                           cwd=root, capture_output=True, text=True)
-    return done.stdout if done.returncode == 0 else done.stderr or "git diff failed"
+    if done.returncode != 0:
+        return done.stderr or "git diff failed"
+    changes = done.stdout
+    for path in COMMAND_LINE_ONLY:
+        then = subprocess.run(["git", "show", f"{tag}:{path}"], cwd=root, capture_output=True, text=True)
+        if then.returncode == 0:
+            now = Path(root) / path
+            if not now.exists() or without_main(now.read_text(encoding="utf-8")) != without_main(then.stdout):
+                changes += f"{path} changed outside main()\n"
+    return changes
 
 
 def frozen_refusal(system, root=ROOT):
@@ -414,6 +435,8 @@ def run(args):
         config["max_per_document"] = AGENT_LIMIT
     if haiku:
         config["model"] = HAIKU_MODEL
+    if args.system == "agent-mixed":
+        config["judge"] = "local"
     run_name = f"{datetime.date.today():%Y-%m-%d}_{args.name or config_name(config)}"
     if args.split == "test" or (haiku and not args.ids):
         refusal = frozen_refusal(args.system)
@@ -423,10 +446,12 @@ def run(args):
                 refusal = f"{args.system} must finish the dev questions with these settings before its test run."
         if refusal:
             raise SystemExit(refusal)
+    if haiku:
+        from .haiku_runs import check_key, client_for, failure_text      # only a run that asks for Haiku loads the SDK or reads the key
+        check_key()         # before any search, before the test run is claimed, and before there's a folder
     if args.split == "test":
         run_name = claim_test_run(args.system, run_name)
-    run_dir = RESULTS / run_name
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = RESULTS / run_name        # made when the first answer is saved, so a run that stops before that leaves no empty folder
     records = read_records(run_dir)
     done = {r["id"] for r in records}
     stored = {r["id"]: r["enhancer"] for r in read_records(args.reuse_enhancer)} if args.reuse_enhancer else {}
@@ -436,9 +461,8 @@ def run(args):
     client = ModelClient.from_settings()
     budget = None
     if haiku:
-        from .haiku_client import HaikuClient      # only a run that asks for Haiku loads the SDK or reads the key
         budget = Budget(run_dir.name)
-        client = HaikuClient(client, budget)
+        client = client_for(args.system, client, budget)
     print(f"{run_dir.name}: {len(items)} questions to run, {len(done)} already done", flush=True)
     with connect() as conn:
         for position, item in enumerate(items, 1):
@@ -447,12 +471,19 @@ def run(args):
             except BudgetExceeded as stop:
                 raise SystemExit(f"Stopped by the budget guard: {stop}. {len(records)} answers are saved, and the run can continue "
                                  "once the limit allows it.") from None
+            except ModelError as error:
+                text = failure_text(error) if haiku else None
+                if text is None:
+                    raise       # a local failure, which friendly_errors explains
+                raise SystemExit(f"{text} {len(records)} answers are saved, and the run can continue.") from None
             records.append(record)
+            run_dir.mkdir(parents=True, exist_ok=True)
             with (run_dir / "items.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
             retrieval = record["retrieval"]
             print(f"  {position}/{len(items)} {item['id']}: rank {retrieval['rank'] if retrieval else '-'}, "
                   f"{sum(record['times'].values()):.1f} s" + (f", ${budget.spent()[0]:.4f} so far" if budget else ""), flush=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
     summary = write_summary(run_dir, records, config)
     print(summary_table(summary))
     print(f"wrote {run_dir}")

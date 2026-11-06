@@ -120,7 +120,13 @@ def main():
                         help=f"how semantic and keyword search are combined ({DEFAULT_FUSION})")
     parser.add_argument("--embedding", choices=EMBEDDINGS, default=DEFAULT_EMBEDDING,
                         help=f"whose vectors semantic search uses ({DEFAULT_EMBEDDING})")
+    parser.add_argument("--haiku", action="store_true", help="Claude Haiku writes the answer (cloud): the question and chunks leave this machine")
     args = parser.parse_args()
+    if args.haiku:
+        from .haiku_runs import manual_run      # only --haiku loads the SDK or reads the key
+        with manual_run("Writer") as client, connect() as conn:
+            print_result(ask(conn, client, args.question, args.k, fusion=args.fusion, embedding=args.embedding), args.show_chunks)
+        return
     with connect() as conn:
         print_result(ask(conn, ModelClient.from_settings(), args.question, args.k, fusion=args.fusion,
                          embedding=args.embedding), args.show_chunks)

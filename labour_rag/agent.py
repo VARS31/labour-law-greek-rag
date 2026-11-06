@@ -316,12 +316,22 @@ def main():
     parser.add_argument("question")
     parser.add_argument("--trace", action="store_true", help="show the rounds step by step")
     parser.add_argument("--embedding", choices=EMBEDDINGS, default=DEFAULT_EMBEDDING)
+    parser.add_argument("--haiku", action="store_true", help="Claude Haiku is the Judge and the Writer (cloud): the question and chunks leave this machine")
     args = parser.parse_args()
-    with connect() as conn:
-        result = run(conn, ModelClient.from_settings(), args.question, args.embedding)
-    if args.trace:
-        print("\n".join(trace_lines(result["rounds"])))
-    print_result(result)
+
+    def answer(client):
+        with connect() as conn:
+            result = run(conn, client, args.question, args.embedding)
+        if args.trace:
+            print("\n".join(trace_lines(result["rounds"])))
+        print_result(result)
+
+    if args.haiku:
+        from .haiku_runs import manual_run      # only --haiku loads the SDK or reads the key
+        with manual_run("Judge + Writer") as client:
+            answer(client)
+    else:
+        answer(ModelClient.from_settings())
 
 
 if __name__ == "__main__":
