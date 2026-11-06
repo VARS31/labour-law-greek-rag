@@ -28,7 +28,7 @@ REPORT = ROOT / "docs/agent-report.md"
 ONE_SHOT = "oneshot-qwen3-4b-semantic-units-limit2-dev"
 AGENT = "agent-qwen3-4b-semantic-units-limit4-dev"
 AGENT_FIXED = "agent-3c1-qwen3-4b-semantic-units-limit4-dev"
-# Scored as complete, but wrong when read. The verdicts and their reasons are in scripts/final_report.py, which reads all three systems the same way. No answer changed between 3C and 3C.1 on these.
+# Scored as complete, but wrong when read. The verdicts and their reasons are in eval/hand_read.json, which reads all systems the same way. No answer changed between 3C and 3C.1 on these.
 WRONG_THOUGH_COMPLETE = {"agent": set(READ_BY_HAND["agent", "dev"]), "agent-3c1": set(READ_BY_HAND["agent", "dev"]),
                          "one-shot": set(READ_BY_HAND["oneshot-v2", "dev"])}
 
@@ -264,9 +264,9 @@ def main():
             fixed_times[step] = fixed_times.get(step, 0) + seconds
     new_shown = {i: [c for r in a["rounds"] for c in r["chunks"]] for i, a in new_items.items()}
 
-    claims = {"3C.1: the counts behind FIXES": (len(complete(agent, "agent")), len(complete(fixed, "agent-3c1")), g["correct_refusals"], f["correct_refusals"], g["wrong_refusals"], f["wrong_refusals"]) == (13, 13, 5, 5, 2, 1),
-              "the three wrong answers on each system say what the report says": "πέντε τουλάχιστον ημέρας" in items["sector-01"]["answer"] and "δεν απαιτεί προηγούμενη άδεια" in items["sector-02"]["answer"] and "έγινε η καταβολή της αποζημίωσης" in items["single-10"]["answer"]
-              and "21 Αυγούστου" in one["items"]["single-27"]["answer"] and "δεν υπερβαίνει το ανώτατο χρονικό διάστημα" in one["items"]["single-17"]["answer"] and "επιφύλαξη" not in one["items"]["lookup-01"]["answer"],
+    claims = {"3C.1: the counts behind FIXES": (len(complete(agent, "agent")), len(complete(fixed, "agent-3c1")), g["correct_refusals"], f["correct_refusals"], g["wrong_refusals"], f["wrong_refusals"]) == (12, 12, 5, 5, 2, 1),
+              "the wrong answers on each system say what the report says": "πέντε τουλάχιστον ημέρας" in items["sector-01"]["answer"] and "δεν απαιτεί προηγούμενη άδεια" in items["sector-02"]["answer"] and "έγινε η καταβολή της αποζημίωσης" in items["single-10"]["answer"] and "η κράτηση προστίμου" in items["single-23"]["answer"]
+              and "μόνο για πρόστιμα" in one["items"]["single-23"]["answer"] and "δεν υπερβαίνει το ανώτατο χρονικό διάστημα" in one["items"]["single-17"]["answer"] and "επιφύλαξη" not in one["items"]["lookup-01"]["answer"],
               "3C.1: the answers that changed are the six in CHANGED": {i for i, a in new_items.items() if a["answer"] != items[i]["answer"]} == {q.strip("`") for q, *_ in CHANGED},
               "3C.1: no question lost a key fact, only single-09 gained": {i for i, a in new_items.items() if a["answerable"] and a["score"]["fact_share"] != items[i]["score"]["fact_share"]} == {"single-09"} and new_items["single-09"]["score"]["fact_share"] > items["single-09"]["score"]["fact_share"],
               "3C.1: the stop rule fired on these five": {i for i, a in new_items.items() if any(r["stopped_by_code"] for r in a["rounds"])} == {"single-09", "single-27", "vocab-01", "vocab-03", "refuse-06"},
@@ -277,7 +277,7 @@ def main():
               "3C.1: the ranks further reading can't reach": (new_items["vocab-01"]["retrieval"]["rank"], new_items["reference-01"]["retrieval"]["rank"], new_items["lookup-01"]["retrieval"]["rank"]) == (19, 27, 30),
               "3C.1: 4 chunks more in round 2 on the 6 that reach it": {i: len(a["rounds"][1]["chunks"]) - len(items[i]["rounds"][1]["chunks"]) for i, a in new_items.items() if len(a["rounds"]) > 1} == dict.fromkeys(("single-09", "sector-03", "reference-01", "refuse-04", "refuse-06", "lookup-01"), 4),
               "3C.1: its claims of a missing law are among the 11 checked ones": {law for a in new_items.values() for law in a["laws_missing"]} <= {law for a in items.values() for law in a["laws_missing"]},
-              "the counts behind RESULT": (len(complete(one, "one-shot")), len(complete(agent, "agent")), g["correct_refusals"], g["wrong_refusals"], o["correct_refusals"], o["wrong_refusals"]) == (9, 13, 5, 2, 4, 0),
+              "the counts behind RESULT": (len(complete(one, "one-shot")), len(complete(agent, "agent")), g["correct_refusals"], g["wrong_refusals"], o["correct_refusals"], o["wrong_refusals"]) == (9, 12, 5, 2, 4, 0),
               "the right chunk only ever arrives in round 1": {r["retrieval"]["gold_first_round"] for r in judged} == {1},
               "the 9 questions in ROUNDS": {i.strip("`") for i, *_ in ROUNDS} == set(multi),
               "the 3C run is untouched by the fixes": not any("stopped_by_code" in r for a in items.values() for r in a["rounds"]),
@@ -317,9 +317,9 @@ def main():
 
     add("## The numbers\n")
     add(overall_table(one, agent, o, g) + "\n")
-    add(f"**Why two rows for complete answers.** Key facts are matched without a model, and that can't read meaning. So I read every answer scored as complete on either system, and in Phase 4A I read them again by one rule: an answer fails if it states a key fact wrong anywhere, short answer included. "
-        "Three fail on each system. On the agent: `sector-01` (5 days instead of 30), `sector-02` (it says no permit is needed, and the chunk requires one) and `single-10` (the six months start from the wrong date). On the one-shot: `single-17` (its short answer turns the exception around), "
-        "`single-27` (it puts the Dormition on 21 August) and `lookup-01` (\"subject to article 3\" isn't there: the matcher took a list number for it). **This report said 15 against 12 until then:** my first reading found only `sector-01`, which was too generous. By the same rule the one-shot of Phase 2 (bge-m3 and RRF) has 6 of 26.\n")
+    add(f"**Why two rows for complete answers.** Key facts are matched without a model, and that can't read meaning. So every answer scored as complete on either system was read. The verdicts are now those of two blind readers (Phase 4B), by one rule: an answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included. "
+        "Four fail on the agent: `sector-01` (5 days instead of 30), `sector-02` (it says no permit is needed, and the chunk requires one), `single-10` (the six months start from the wrong date) and `single-23` (it speaks only of fines, and never says that deductions in general are allowed only where the law says). Three fail on the one-shot: `single-17` (its short answer turns the exception around), "
+        "`lookup-01` (\"subject to article 3\" isn't there: the matcher took a list number for it) and `single-23` (it says deductions are allowed only for fines, and the chunk lists seven kinds). **This report said 15 against 12 until Phase 4A, and 13 against 9 until Phase 4B:** my own readings were too generous at first, and missed `single-23`. By the same rule the one-shot of Phase 2 (bge-m3 and RRF) has 6 of 26.\n")
     add(f"**Where the two differ.** The writer saw the right chunk for {share(g, 'recall_at_8', g['with_gold_chunks'])} questions on both, but not the same ones. The agent gains `sector-05`, because limit 4 lets the "
         "chunk through. It loses `vocab-03`, because the Judge rejected it. Key facts are up on " + ", ".join(f"`{i}`" for i in better) + "; down on " + ", ".join(f"`{i}`" for i in worse) + ".\n")
     add(f"**Failures, by who caused them.** The agent: search {kinds['search']}, Judge {kinds['judge']}, writer {kinds['writer']} (the code gives {g['agent_problems']['writer']}, and the three wrong answers above add the rest). The one-shot, which has no Judge: search "

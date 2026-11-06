@@ -10,5 +10,13 @@
  "agent": {
   "run": "2026-11-05_agent-3c1-qwen3-4b-semantic-units-limit4-test",
   "started": "2026-11-05"
+ },
+ "oneshot-haiku": {
+  "run": "2026-11-06_oneshot-haiku-qwen3-4b-semantic-units-limit2-test",
+  "started": "2026-11-06"
+ },
+ "agent-haiku": {
+  "run": "2026-11-06_agent-haiku-qwen3-4b-semantic-units-limit4-test",
+  "started": "2026-11-06"
  }
 }

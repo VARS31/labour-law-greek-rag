@@ -1,0 +1,1935 @@
+{
+ "how": "Two fresh Claude agents read every answer the matcher scored complete, with the system labels hidden and the answers to each question shuffled, and each listed the claims its cited chunks don't support. Where they agree, their verdict stands. Where they differ, the verdict is a ruling by the Claude session that ran Phase 4B, marked ruled.",
+ "dev": {
+  "agent-haiku": {
+   "lookup-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "lookup-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-02": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It never says the increased pay is due at the end of the year; its only year-end words, «πριν λήξει το έτος», are the deadline for granting the leave, not for paying.",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It never says the increased pay is due at the end of the year; «πριν λήξει το έτος» is about the deadline to grant the leave, so the key fact \"Καταβάλλονται με τη λήξη του έτους\" is left out.",
+     "unsupported": []
+    },
+    "why": "It never says the increased pay is due at the end of the year. «πριν λήξει το έτος» is the deadline for granting the leave."
+   },
+   "single-09": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-11": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-17": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-18": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-21": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-23": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The explanation that the Sundays of Β.Δ. 750/1971 are «την τελευταία ή προτελευταία Κυριακή κάθε έτους» is not in the cited chunk, which only refers to art. 1."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«δηλαδή την τελευταία ή προτελευταία Κυριακή κάθε έτους» is in no cited chunk; [2] refers to art. 1 of Β.Δ. 750/1971 without saying which Sundays."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-29": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-32": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The description of the source as «υπουργική απόφαση για τον καθορισμό κατώτατων μισθών και ημερομισθίων» is not in the cited chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«σε υπουργική απόφαση για τον καθορισμό κατώτατων μισθών και ημερομισθίων» describes the act in a way the cited chunk doesn't state."
+     ]
+    }
+   },
+   "vocab-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The limit to «μικρά αρτοποιεία» is not in art. 9, which is defined by products and indirectly heated ovens, not size."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«μικρά αρτοποιεία» is not in art. 9, which sets no size limit; it speaks of bakeries making other products with indirectly heated ovens."
+     ]
+    }
+   }
+  },
+  "oneshot-v2": {
+   "lookup-01": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The reservation of article 3 is never stated; the answer instead gives an invented exception, «εκτός από περιπτώσεις μαθητείας ή ειδικών εκπαιδευτικών προγραμμάτων».",
+     "unsupported": [
+      "The quoted opening «Η προστασία των ανηλίκων κατά την απασχόληση αφορά την ηλικία...» appears in no cited chunk.",
+      "The limit «8 ώρες την ημέρα και 40 ώρες την εβδομάδα» for over-15s is not in the cited chunks.",
+      "The requirement of a «βιβλιάριο εργασίας» issued by the Ministry with the listed contents is not in the cited chunks as described; glc-33848-011 only says existing booklets stay valid.",
+      "The commencement date «22 Μαρτίου 1989» is not in the cited chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The key fact \"Με την επιφύλαξη του άρθρου 3\" is not stated; the only '3' is a list number, and the answer gives a different exception instead, «εκτός από περιπτώσεις μαθητείας ή ειδικών εκπαιδευτικών προγραμμάτων».",
+     "unsupported": [
+      "The quoted text «Η προστασία των ανηλίκων κατά την απασχόληση αφορά την ηλικία...» appears in no cited chunk.",
+      "The under-15 ban and the ban on «επικίνδυνες, βαριές ή ανθυγιεινές εργασίες» are cited to [2], a paid-leave convention; neither cited chunk says them.",
+      "«8 ώρες την ημέρα και 40 ώρες την εβδομάδα» for those over 15 is in no cited chunk.",
+      "The «βιβλιάριο εργασίας» being issued by the Ministry and containing age and terms is in no cited chunk; [3] only says existing booklets stay valid.",
+      "The date «22 Μαρτίου 1989» for the law's entry into force is in no cited chunk."
+     ]
+    },
+    "why": "\"Subject to article 3\" isn't there: the matcher took a list number \"3.\" for it. The right chunk wasn't among its 8, so this counts as a search failure."
+   },
+   "sector-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says Υ.Α. 11400/1975 gives «20 εργάσιμες ημέρες» to a first-year five-day worker, whereas in that chunk 20 is only the 1975 ceiling after seniority.",
+      "The progression «από 10 ημέρες το 1975, σε 11 το 1976, και 20 από το 1977» is wrong: the chunk gives 10, 11 and 12 for those years.",
+      "It says Υ.Α. 11400/1975 leaves out the non-working day, whereas par. 5 of that chunk says «λογίζεται και το Σάββατον» as a working day."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«Εις 20 αλλεπαλλήλους εργασίμους ημέρας» as the entitlement under Υ.Α. 11400 for a five-day week is not in that chunk; there 20 is a 1975 ceiling for one group, and the chunk doesn't tie it to a five-day week.",
+      "«από 10 ημέρες το 1975, σε 11 το 1976, και 20 από το 1977» contradicts the chunk, which says 12 from 1977.",
+      "«δεν υπολογίζουν την ημέρα ... όπως αναφέρει και η Υ.Α. 11400/1975» reverses that chunk, whose par. 5 counts Saturday as a working day («λογίζεται και το Σάββατον»)."
+     ]
+    }
+   },
+   "single-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The excluded examples «(π.χ. ασθένεια, εξετάσεις)» are not in the cited chunks as other kinds of leave outside this rule."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says that after an early birth «όλες οι υπόλοιπες 8 εβδομάδες μεταφέρονται», whereas the chunk says only «το υπόλοιπο της άδειας».",
+      "It says pay follows the rules «για επιδόματα μητρότητας», whereas the chunk says only «τις προβλεπόμενες για το θέμα αυτό διατάξεις»."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«όλες οι υπόλοιπες 8 εβδομάδες μεταφέρονται μετά τον τοκετό» on an early birth overstates the chunk, which moves «το υπόλοιπο της άδειας», not a fixed 8 weeks."
+     ]
+    }
+   },
+   "single-17": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The short answer turns the exception around, allowing dismissal «εκτός αν η διακοπή της εργασίας για λόγους υγείας δεν υπερβαίνει το ανώτατο χρονικό διάστημα», when the only exception is serious cause, and the notice goes only to «αρμόδιες υπηρεσίες» with no mention of the labour inspectorate.",
+     "unsupported": [
+      "The example of serious cause «σοβαρή παραβατική συμπεριφορά» is not in the chunks.",
+      "The duration «μέχρι να επανέλθει στην εργασία» is not in the chunks.",
+      "The scope «ανεξάρτητα από το είδος της εργασίας ή τον κλάδο» is not in the chunks.",
+      "The statement that Π.Δ. 176/1997 «αντικατέστησε και συμπλήρωσε τον Ν. 2274/1920» is not in the chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The short answer gives the wrong exception, «εκτός αν η διακοπή της εργασίας για λόγους υγείας δεν υπερβαίνει το ανώτατο χρονικό διάστημα», which inverts the old text and displaces the only exception, a serious reason; the explanation also says just «αρμόδιες υπηρεσίες», not the labour inspectorate.",
+     "unsupported": [
+      "«(π.χ. σοβαρή παραβατική συμπεριφορά)» as an example of a serious reason is in no cited chunk.",
+      "«ανεξάρτητα από το είδος της εργασίας ή τον κλάδο» is a scope in no cited chunk.",
+      "«μέχρι να επανέλθει στην εργασία ή να λήξει η προθεσμία της ειδοποίησης» misstates [1], which bars notice during the absence up to a limit set by the authority, or when the notice period would end during it.",
+      "«αντικατέστησε και συμπλήρωσε τον Ν. 2274/1920» is in no cited chunk."
+     ]
+    },
+    "why": "Its short answer turns the exception around: dismissal depends on how long a health stoppage lasts. The key fact is a serious reason, given in writing."
+   },
+   "single-21": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The payment date «την Μεγάλη Τετάρτη» is not in either chunk this answer cites."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«Η καταβολή γίνεται την Μεγάλη Τετάρτη» is in neither cited chunk; that rule is in art. 10, which this answer doesn't cite."
+     ]
+    }
+   },
+   "single-23": {
+    "verdict": "fail",
+    "ruled": true,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the decree allows deductions «μόνο για πρόστιμα», whereas art. 3 lists seven cases, α to ζ.",
+      "It says the regulation must be «να εγκρίνεται από την αστυνομική αρχή» and renewed every six months, whereas the chunk requires only submitting a copy every six months and reporting changes."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It states the closed list wrong, «επιτρέπει κράτηση από το μισθό μόνο για πρόστιμα», where the chunk lists seven permitted kinds of deduction, so the key fact on the cases the law sets is wrong.",
+     "unsupported": [
+      "«να εγκρίνεται από την αστυνομική αρχή και να ανανεώνεται κάθε εξάμηνο» misstates [1], which requires submitting a copy every six months and reporting changes, with no approval."
+     ]
+    },
+    "why": "It says the law allows deductions «μόνο για πρόστιμα». The chunk lists seven kinds, so the closed list is stated wrong. The readers differed, and I ruled."
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The exception «όπως οι επιχειρήσεις μεταφοράς προσώπων ή πραγμάτων» is not in the chunk, whose transport reservation concerns only how rest falls on Sundays.",
+      "The rule that the rest «δεν μπορεί να αντικατασταθεί με οικονομική αποζημίωση» is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«εκτός αν αφορά ειδικές περιπτώσεις όπως οι επιχειρήσεις μεταφοράς» as an exception to the right is not in the chunk, which reserves transport rules only in par. 3.",
+      "«δεν μπορεί να αντικατασταθεί με οικονομική αποζημίωση» is in no cited chunk."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The date «Κοιμήσεως της Θεοτόκου (21 Αυγούστου)» is not in the chunk and is wrong.",
+      "The exceptions «εκτός αν αφορούν μόνο συγκεκριμένους κλάδους ή οργανισμούς» and «εκτός αν ο εργοδότης έχει διαφορετικές συμφωνίες ... (π.χ. σε συλλογικές συμβάσεις εργασίας)» are not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«Κοιμήσεως της Θεοτόκου (21 Αυγούστου)» gives a date the chunk doesn't state, and it's wrong.",
+      "«εκτός αν αφορούν μόνο συγκεκριμένους κλάδους ή οργανισμούς» and «εκτός αν ο εργοδότης έχει διαφορετικές συμφωνίες ... σε συλλογικές συμβάσεις» are exceptions the chunk doesn't state; par. 6 only keeps extra holidays set by agreements."
+     ]
+    }
+   },
+   "single-29": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-32": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The statement that the 1986 decision «αντικατέστησε προηγούμενες διατάξεις» which «δεν ισχύουν πλέον» is not in the cited chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«αντικατέστησε προηγούμενες διατάξεις ... δεν ισχύουν πλέον» is in no cited chunk; none says the older hours were replaced."
+     ]
+    }
+   }
+  },
+  "oneshot-haiku": {
+   "lookup-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-11": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It never says the reasons must not concern the person dismissed; the only similar word is «προσωπικό», meaning the staff count.",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It never says the dismissals must be for reasons unrelated to the person of those dismissed; the only near word is «προσωπικό» (staff count), which is unrelated.",
+     "unsupported": []
+    },
+    "why": "It never says the reasons must not concern the person dismissed. The only similar word is «προσωπικό», meaning the staff count."
+   },
+   "single-14": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says hours from 41 to 48 «πληρώνονται ως υπερωρία», whereas glc-22329-002 calls this «υπερεργασία» with a «συμπληρωματική αμοιβή»."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«πληρώνονται ως υπερωρία» mislabels the hours from 41 to 48; the chunk treats them as «υπερεργασία» with a supplementary 25% pay."
+     ]
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The label «Εθνική Γενική Συλλογική Σύμβαση Εργασίας 1989» for Υ.Α. 12756/1989 is not in the cited chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The label «Εθνική Γενική Συλλογική Σύμβαση Εργασίας 1989» for Υ.Α. 12756/1989 is in no cited chunk."
+     ]
+    }
+   },
+   "single-17": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-18": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-21": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-23": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The detail «την τελευταία ή προτελευταία Κυριακή του έτους» for Β.Δ. 750/1971 is not in the cited chunk, which only refers to art. 1."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«την τελευταία ή προτελευταία Κυριακή του έτους» is in no cited chunk; [2] refers to art. 1 of Β.Δ. 750/1971 without saying which Sundays."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The group «εργάτες που μετανάστευσαν στο Βέλγιο για ανθρακωρυχεία» is not in the cited chunk, which says only «Ο εργάτης»."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«εργάτες που μετανάστευσαν στο Βέλγιο για ανθρακωρυχεία» and «αφορά μόνο αυτή την ομάδα» are not in the cited chunk text of Ν.Δ. 4121/1960 art. 2."
+     ]
+    }
+   },
+   "single-29": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-32": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The label «των ΚΤΕΛ» is not in the cited chunk, which says only «προσωπικού κινήσεως»."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«προσωπικό κίνησης των ΚΤΕΛ» names a sector the cited chunk doesn't; it says only «προσωπικού κινήσεως»."
+     ]
+    }
+   },
+   "vocab-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   }
+  },
+  "baseline": {
+   "lookup-03": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It says 1 May is simply established, «καθιερώνεται η 1η Μαΐου ως ημέρα υποχρεωτικής αργίας», and never states that it may be set by a yearly decision of the Minister of Labour.",
+     "unsupported": [
+      "The scope «για όλους τους μισθωτούς» and the ban «δεν επιτρέπεται η εργασία» are not in the cited chunks.",
+      "The hours «από τις 00:00 έως τις 24:00» come from art. 4 of Β.Δ. 748/1966, while glc-26277-001 extends only arts. 7, 8 and 9 of that decree to this holiday.",
+      "The claim that the procedure «επιτρέπεται να τροποποιηθεί μόνο με απόφαση του Υπουργού Απασχολήσεως» is not in the chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It says «καθιερώνεται η 1η Μαΐου ως ημέρα υποχρεωτικής αργίας» as a fixed holiday and never says it may be set by a yearly decision of the Minister of Labour, so two key facts are missing or wrong.",
+     "unsupported": [
+      "«για όλους τους μισθωτούς» and «δεν επιτρέπεται η εργασία σε αυτή την ημέρα» are in no cited chunk.",
+      "«επιτρέπεται να τροποποιηθεί μόνο με απόφαση του Υπουργού Απασχολήσεως» is not what the chunk says; it only allows the minister to move the holiday when it falls in Holy Week or on Easter Sunday."
+     ]
+    },
+    "why": "It says the law makes 1 May a holiday. The law says it can be made one by a minister's decision, each year."
+   },
+   "sector-02": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The short answer turns the yearly cap around, saying overtime is allowed «πέραν των 120 ωρών ετησίως», even though a later line says no more than 120.",
+     "unsupported": [
+      "The remarks that the rule covers shops «που δεν είναι κρεοπωλεία» and that «πετρελαιοειδή» have different rules are not in any cited chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The short answer says overtime is allowed «πέραν των 120 ωρών ετησίως», which turns the yearly ceiling around, even though point 1 later says «όχι περισσότερες από 120 ώρες».",
+     "unsupported": [
+      "«καταστήματα πώλησης που δεν είναι κρεοπωλεία» is in no cited chunk; none mentions butcher shops.",
+      "«δεν αφορά μόνο κρεοπωλεία ή ειδικές περιπτώσεις όπως τα πετρελαιοειδή (που έχουν διαφορετικές ρυθμίσεις)» is in no cited chunk; [7] and [8] only give shop opening hours."
+     ]
+    },
+    "why": "Its short answer allows overtime «πέραν των 120 ωρών ετησίως». The limit is at most 120 hours a year."
+   },
+   "sector-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It limits the rule to bakeries «με ημερήσια παραγωγή άνω των 3.000 οκάδων» and says it «δεν ισχύει για αρτοποιεία με μικρότερη παραγωγή», whereas art. 3 says the provisions apply «και» to those larger bakeries.",
+      "It says the overtime rule covers «το Σαββατοκύριακο», whereas the chunk says «Καθ’ έκαστον Σάββατον» only."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«Σε αρτοποιεία με ημερήσια παραγωγή άνω των 3.000 οκάδων» limits the rule, and «δεν ισχύει για αρτοποιεία με μικρότερη παραγωγή» excludes the others; art. 2 has no such limit, and art. 3 only extends the decree to those bakeries.",
+      "«κατά το Σαββατοκύριακο» is wider than the chunk, which says Saturdays only («Καθ’ έκαστον Σάββατον»)."
+     ]
+    }
+   },
+   "single-01": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The clause «ανεξάρτητα από το πότε ξεκίνησε η σχέση εργασίας σου» is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«ανεξάρτητα από το πότε ξεκίνησε η σχέση εργασίας σου» is in no cited chunk."
+     ]
+    }
+   },
+   "single-11": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The consequence «υπόκεινται σε έλεγχο από το Υπουργείο Εργασίας» is not in the chunk, which has only the title «Έλεγχος ομαδικών απολύσεων»."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«υπόκεινται σε έλεγχο από το Υπουργείο Εργασίας» is in no cited chunk; beyond the title's «Έλεγχος», the chunk mentions the minister only for setting the percentage."
+     ]
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says that after an early birth «όλες οι 16 εβδομάδες χορηγούνται μετά τον τοκετό», whereas the chunk says only «το υπόλοιπο της άδειας».",
+      "The scope «σε ιδιωτικό δικαίωμα» is not in the chunk, which refers only to art. 2 par. α."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«όλες οι 16 εβδομάδες χορηγούνται μετά τον τοκετό» on an early birth contradicts the chunk, which moves only «το υπόλοιπο της άδειας».",
+      "«σε ιδιωτικό δικαίωμα» as a limit on who is covered is in no cited chunk."
+     ]
+    }
+   },
+   "single-23": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It speaks only of fines («δεν επιτρέπεται να κρατάται πρόστιμο εκτός αν») and never states the general rule that deductions from wages are allowed only in the cases the law sets.",
+     "unsupported": [
+      "The consequence that the deduction is «ακυρώσιμη» is not in the cited chunks.",
+      "The requirement that the regulation must «αναφέρει το μέγιστο όριο του 1/4» is not in the cited chunks; the 1/4 is a limit on the fines, not on the regulation's content."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It speaks only of fines («δεν επιτρέπεται να κρατάται πρόστιμο εκτός αν») and never says that deductions from pay in general are allowed only in the cases the law lists.",
+     "unsupported": [
+      "«η κράτηση είναι ακυρώσιμη» is a legal consequence in no cited chunk."
+     ]
+    },
+    "why": "It speaks only of fines, and never says that deductions in general are allowed only in the cases the law lists."
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The exception «εκτός αν αφορά ειδικές περιπτώσεις (π.χ. μεταφορές)» is not in the chunk, whose transport reservation concerns only how rest falls on Sundays."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«εκτός αν αφορά ειδικές περιπτώσεις (π.χ. μεταφορές)» as an exception to the right is not in the chunk, which reserves transport rules only in par. 3 on how rest days are spread."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The statement «Αυτές οι ημέρες δεν πληρώνονται» is not in the cited chunks.",
+      "The exception for «ειδικούς κλάδους (όπως το εμπόριο)» or a collective agreement providing otherwise is not in the cited chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«Αυτές οι ημέρες δεν πληρώνονται» is in no cited chunk.",
+      "«εκτός αν η επιχείρηση ανήκει σε ειδικούς κλάδους (όπως το εμπόριο) ή έχει συλλογική σύμβαση που προβλέπει διαφορετικά» is an exception in no cited chunk."
+     ]
+    }
+   }
+  },
+  "agent": {
+   "lookup-03": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-01": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It gives the wrong notice for six years, «πέντε ημέρες πριν την απόλυση» (and 15 days for five to ten years), instead of at least 30 days.",
+     "unsupported": [
+      "The statement that the decree «καταργήθηκε για τους εργάτες βιομηχανικών επιχειρήσεων» by art. 43 Ν. 1836/1989 is wrong: the chunk says only cases β and γ were repealed.",
+      "The claim that it «συνέχισε να ισχύει για την προειδοποίηση ... μέχρι να αντικατασταθεί από νεότερους κανόνες» is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It gives «πέντε ημέρες» (short answer) and «15 ημέρες» for 5 to 10 years, where the chunk says at least 30 days for over five years.",
+     "unsupported": [
+      "The other tiers are wrong: the chunk says 8 days beyond 12 months and 15 beyond two years, not «πέντε ημέρες» for one to two years and «οκτώ ημέρες» for two to five.",
+      "«περισσότερες από δέκα χρόνια ... 30 ημέρες» contradicts the chunk, which says 60 days beyond ten years.",
+      "«καταργήθηκε για τους εργάτες βιομηχανικών επιχειρήσεων» is wrong: the chunk says only β–γ were repealed by art. 43, and the factory workers' case α stays.",
+      "«συνέχισε να ισχύει για την προειδοποίηση ... μέχρι να αντικατασταθεί από νεότερους κανόνες» is in no cited chunk."
+     ]
+    },
+    "why": "It says 5 days for six years of service. The chunk says 30."
+   },
+   "sector-02": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It says the opposite of the permit rule: «Η υπερωρία αυτή δεν απαιτεί προηγούμενη άδεια της αρμοδίας αρχής».",
+     "unsupported": [
+      "The requirement that overtime «πρέπει να καταγραφεί με τον τρόπο που ορίζει ο νόμος» is not in the chunk.",
+      "The 75% is tied to «Αν δεν πληρωθείς σωστά», whereas the chunk gives it for work outside the permitted cases or without notice or permit."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It says «δεν απαιτεί προηγούμενη άδεια της αρμοδίας αρχής», the opposite of the key fact that stock-taking needs a permit from the competent service.",
+     "unsupported": [
+      "«πρέπει να καταγραφεί με τον τρόπο που ορίζει ο νόμος» is in no cited chunk.",
+      "«Αν δεν πληρωθείς σωστά ... 75%» misstates the trigger: the chunk gives 75% for work beyond the permitted cases or without notice or permit, not for wrong pay."
+     ]
+    },
+    "why": "It says «δεν απαιτεί προηγούμενη άδεια». The chunk says «μόνον κατόπιν αδείας»."
+   },
+   "sector-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It gives «σταφίδας, εσπεριδοειδών ή φρούτων» as art. 1 par. 5 seasonal work, but those trades are in art. 4 par. 4 under a different one-per-five rule.",
+      "The rule that without a «πλήρη ημερολογιακό μήνα εργασίας» the average daily wage of art. 4 par. 1 applies is not in the chunks; that paragraph covers other pay categories.",
+      "The claim that the bonus «δεν εξαρτάται από το συνολικό μισθό σου» conflicts with art. 3, which calculates it on all regular pay actually paid."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«(π.χ. σταφίδας, εσπεριδοειδών ή φρούτων)» under art. 1 par. 5 is wrong: those workers are in art. 4 par. 4, with a different rule of one daily wage per five.",
+      "«Αν δεν έχεις πλήρη ημερολογιακό μήνα εργασίας ... μέσο ημερομίσθιο» is not what art. 4 par. 1 says; it gives the average to listed pay categories, with no such condition.",
+      "«δεν εξαρτάται από το συνολικό μισθό σου» is in no cited chunk; art. 3 bases the bonus on total regular earnings."
+     ]
+    }
+   },
+   "single-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The condition «αν δεν έχει λύσει η σχέση εργασίας» is not in the chunk.",
+      "The statement «χωρίς να απαιτείται δικαστική διαδικασία» is not in the chunk.",
+      "The statement that untaken leave «δεν μεταφέρεται» to the next year is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«αν δεν έχει λύσει η σχέση εργασίας» as a condition of the 100% rule is in no cited chunk.",
+      "«χωρίς να απαιτείται δικαστική διαδικασία» is in no cited chunk.",
+      "«δεν μεταφέρεται στο επόμενο έτος, αλλά αντικαθίσταται από χρηματική αποζημίωση» is in no cited chunk."
+     ]
+    }
+   },
+   "single-10": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The six-month deadline is wrong: it runs «από την ημερομηνία που έγινε η καταβολή της αποζημίωσης» and is extended to «την ίδια την απόλυση», whereas the chunk says from when the compensation became due and only for compensation claims.",
+     "unsupported": [
+      "The start date «όπως αναγράφεται στο πιστοποιητικό ή το έγγραφο απόλυσης» is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The six-month limit is stated wrong: it runs «από την ημερομηνία που έγινε η καταβολή της αποζημίωσης» instead of from when the claim became due, and it also covers contesting «την ίδια την απόλυση», which the chunk puts under three months.",
+     "unsupported": [
+      "«όπως αναγράφεται στο πιστοποιητικό ή το έγγραφο απόλυσης» is in no cited chunk."
+     ]
+    },
+    "why": "It starts the six months from the payment. The chunk says «αφ' ης κατέστη απαιτητή»."
+   },
+   "single-11": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-15": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says that after an early birth «οι 8 εβδομάδες πριν μεταφέρονται ολοκληρωτικά», whereas the chunk says only «το υπόλοιπο της άδειας».",
+      "The statement that Π.Δ. 176/1997 «αντικατέστησε και τροποποίησε» Ν. 2274/1920 is not in the cited chunks."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«οι 8 εβδομάδες πριν μεταφέρονται ολοκληρωτικά μετά τον τοκετό» overstates the chunk, which moves only «το υπόλοιπο της άδειας».",
+      "«αντικατέστησε και τροποποίησε προηγούμενους κανόνες, όπως τον Ν. 2274/1920» is in no cited chunk."
+     ]
+    }
+   },
+   "single-17": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The period of the ban, from «όταν γνωστοποιήσει την εγκυμοσύνη ή έχει ιατρικό πιστοποιητικό» until «την επιστροφή της στην εργασία», is not in the chunks.",
+      "The carve-out «όχι για λήξη συμβάσεων με ορισμένο χρόνο ή για απολύσεις για σοβαρή παραβάσεις» is not in the chunks.",
+      "The extension of the no-replacement rule to anyone who «έχει δικαιώματα προστασίας κατά την εγκυμοσύνη» goes beyond art. 13 of the 1912 law, which covers only the period around birth."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«από τη στιγμή που ... γνωστοποιήσει την εγκυμοσύνη ή έχει ιατρικό πιστοποιητικό» and «μέχρι την επιστροφή της στην εργασία» give a start and an end of the ban that no cited chunk states.",
+      "«όχι για λήξη συμβάσεων με ορισμένο χρόνο» is an exception in no cited chunk.",
+      "«ή έχει δικαιώματα προστασίας κατά την εγκυμοσύνη, δεν μπορεί να αντικατασταθεί οριστικά» widens [4], which bars final replacement only during the eight weeks around birth in the listed businesses."
+     ]
+    }
+   },
+   "single-18": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-21": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-23": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It speaks only of fines («η κράτηση προστίμου δεν επιτρέπεται») and never states the general rule that deductions from wages are allowed only in the cases the law sets.",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It gives only the conditions for fines («η κράτηση προστίμου δεν επιτρέπεται») and never says that deductions from pay in general are allowed only in the cases the law lists.",
+     "unsupported": []
+    },
+    "why": "It speaks only of fines, and never says that deductions in general are allowed only in the cases the law lists."
+   },
+   "single-26": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The exclusion of special cases «όπως θέατρα ή μεταφορές» from the right is not in the chunk.",
+      "The exception «εκτός αν υπάρχει ειδική συμφωνία» goes against the chunk, which grants the right «ανεξαρτήτως του κύρους της συμφωνίας».",
+      "The statement that the decree «αντικαταστάθηκε και τροποποιήθηκε από νεότερους νόμους» but stays «εφαρμόσιμη μέχρι σήμερα» is not in the chunk."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«εκτός αν υπάρχει ειδική συμφωνία ή εξαίρεση (π.χ. για επιχειρήσεις μεταφοράς)» is not in the chunk, which gives the right «ανεξαρτήτως του κύρους της συμφωνίας» and reserves transport rules only in par. 3.",
+      "«αντικαταστάθηκε και τροποποιήθηκε από νεότερους νόμους ... παραμένει εφαρμόσιμη μέχρι σήμερα» is in no cited chunk."
+     ]
+    }
+   },
+   "single-27": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "The claim that 1 May was mandatory «μόνο για το 1977» is not in the chunks; Υ.Α. 16949/918/1977 sets that year only and does not say no other year had it."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«ήταν υποχρεωτική αργία μόνο για το 1977» overreads [3], which sets 1 May for 1977 and doesn't say it was so only that year."
+     ]
+    }
+   },
+   "single-29": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says prescription «δεν μπορεί να αρχίσει πριν από το έτος που δημοσιεύτηκε», whereas the chunk says it is not completed before one year from publication.",
+      "It says the decree «αντικατέστησε παλαιότερους νόμους που είχαν διαφορετικά όρια παραγραφής», whereas the chunk repeals two decrees on overtime hour limits."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "«δεν μπορεί να αρχίσει πριν από το έτος που δημοσιεύτηκε» misstates the chunk, which says the five years can't be completed before one year from publication.",
+      "«αντικατέστησε παλαιότερους νόμους που είχαν διαφορετικά όρια παραγραφής» is not in the chunk; its par. 2 repeals decrees on overtime hour limits."
+     ]
+    }
+   },
+   "single-32": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   }
+  }
+ },
+ "test": {
+  "agent-haiku": {
+   "lookup-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "lookup-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the article belongs to \"ελάχιστες προδιαγραφές\" for working time \"σε συμμόρφωση με την οδηγία 93/104/ΕΚ\"; the cited chunk mentions neither."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the article belongs to \"ελάχιστες προδιαγραφές για την οργάνωση του χρόνου εργασίας, σε συμμόρφωση με την οδηγία 93/104/ΕΚ\"; the chunk doesn't say this or name that directive."
+     ]
+    }
+   },
+   "sector-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the rule of Π.Δ. 119/1973 \"αφορά ειδικά το προσωπικό των ΚΤΕΛ\"; the cited chunk does not name ΚΤΕΛ."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says \"ο κανόνας του Π.Δ. 119/1973 αφορά ειδικά το προσωπικό των ΚΤΕΛ\"; the cited chunk doesn't mention ΚΤΕΛ.",
+      "Presents Υ.Α. 11282/1979 as the rule \"για τους γενικούς μισθωτούς\"; the cited chunk doesn't state that scope."
+     ]
+    }
+   },
+   "sector-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the extra leave is \"όχι για όλους τους εργαζόμενους με αναπηρία\", though the chunk does not say who par. 4 leaves out and the answer admits it can't tell who is covered."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-08": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It applies the one-month limit to an absence the person did not report and reverses the result for them: \"η διάρκεια των δύο μηνών σας βρίσκεται πέρα από το όριο του ενός μήνα\", though the question says one month.",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It turns the one-month key fact around for this person, who was away one month, by inventing a longer absence: \"η διάρκεια των δύο μηνών σας βρίσκεται πέρα από το όριο του ενός μήνα\".",
+     "unsupported": []
+    },
+    "why": "It invents an absence of two months, «η διάρκεια των δύο μηνών σας βρίσκεται πέρα από το όριο του ενός μήνα». The person was away one month, so the rule comes out reversed for them."
+   },
+   "single-12": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-22": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-31": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It calls Υ.Α. 11753/1990 a \"δημοσίευση της Εθνικής ΓΣΣΕ 1990\"; the cited chunk does not mention that agreement."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Describes Υ.Α. 11753/1990 as \"δημοσίευση της Εθνικής ΓΣΣΕ 1990\"; the cited chunk doesn't say this."
+     ]
+    }
+   },
+   "vocab-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "vocab-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   }
+  },
+  "oneshot-v2": {
+   "lookup-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says dismissed workers \"μπορούν να ανακαλέσουν την απόλυσή τους\", which article 6 does not say.",
+      "It says workers \"δεν χάνουν τα δικαιώματά τους (π.χ. αποζημίωση, αποδοχές, σύνταξη)\" and can seek \"την αναίρεση της απόλυσης μέσω δικαστικής διαδικασίας\"; the chunk gives no such rights or court route.",
+      "It gives \"έλλειψη προειδοποίησης\" as an example of a breach, which the cited chunks do not mention.",
+      "It says the law covers \"το προσωπικό του Δημοσίου, των ΟΤΑ και των ΝΠΔΔ\" outside private-law relations, while article 2 covers only their undertakings run on private-economy principles and excludes their private-law staff."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says dismissed workers \"μπορούν να ανακαλέσουν την απόλυσή τους\", a remedy the chunks don't mention.",
+      "Says workers \"μπορούν να ζητήσουν την αναίρεση της απόλυσης μέσω δικαστικής διαδικασίας\", a court procedure the chunks don't mention.",
+      "Says workers \"δεν χάνουν τα δικαιώματά τους (π.χ. αποζημίωση, αποδοχές, σύνταξη)\", a consequence the chunks don't state.",
+      "Gives \"έλλειψη προειδοποίησης\" as an example of a breach, which the chunks don't mention.",
+      "Says the law covers \"το προσωπικό του Δημοσίου, των ΟΤΑ και των ΝΠΔΔ\" without the chunk's condition \"που ασκούνται σύμφωνα με τις αρχές της ιδιωτικής οικονομίας\"."
+     ]
+    }
+   },
+   "single-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the three months apply to those with \"περισσότερους από τέσσερις μήνες\" of service, while the chunk's step starts at \"τετραετή υπηρεσίαν\" (four years).",
+      "It says notice must be given \"πριν από την λήξη των τριών μηνών\", which the chunk does not say; it says three months before the dismissal.",
+      "It says the law was replaced by \"Ν. 4558/1929\"; the chunk says only that the article was replaced by art. 1 of \"Νόμ. 4558\", with no year."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the three months apply to those with \"περισσότερους από τέσσερις μήνες\" of service, while the chunk says \"τετραετή υπηρεσίαν\" (four years).",
+      "Says notice must be given \"πριν από την λήξη των τριών μηνών\", which isn't the chunk's rule of three months before the dismissal.",
+      "Says \"Ο νόμος αντικαταστάθηκε από τον Ν. 4558/1929\"; the chunk says only that the article was replaced by art. 1 of Ν. 4558 and gives no year."
+     ]
+    }
+   },
+   "single-22": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the law requires \"πλήρη απασχόληση τεχνικού ασφάλειας και γιατρού εργασίας\" at 50 and above; the chunks set a minimum of 75 hours a year and no full-time rule.",
+      "It says that with 21 to 50 workers a doctor depends on the category, needed in \"κατηγορία Α\" and not in \"Β ή Γ\"; the chunk's categories deal with the safety technician, not the doctor.",
+      "It says that up to 20 workers there is no doctor \"εκτός αν η επιχείρηση ανήκει σε κατηγορία Α\", which the chunk does not say.",
+      "It says firms over 50 needing two technicians must set up an \"Εσωτερική Υπηρεσία Προστασίας και Πρόληψης (ΕΣΥΠΠ)\"; the cited chunks do not contain this rule."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the law requires \"πλήρη απασχόληση τεχνικού ασφάλειας και γιατρού εργασίας\"; the chunks require using their services, with a minimum of 75 hours a year above 50 employees.",
+      "Ties the doctor to the firm's category (\"μόνο γιατρός εργασίας αν ... κατηγορία Α\", \"δεν απαιτείται γιατρός\" in Β or Γ); the chunk's categories concern the safety technician.",
+      "Says up to 20 employees there is no doctor \"εκτός αν η επιχείρηση ανήκει σε κατηγορία Α\"; the chunk has no such rule.",
+      "Says firms needing \"δύο τεχνικούς ασφάλειας\" must set up an \"Εσωτερική Υπηρεσία Προστασίας και Πρόληψης (ΕΣΥΠΠ)\"; the cited chunks don't say this."
+     ]
+    }
+   },
+   "single-25": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The short answer turns the rule around for this person: \"Δεν χρειάζεται αποζημίωση για μία εβδομάδα απουσίας\", though a week is over the four-day limit and the later lines say so.",
+     "unsupported": [
+      "It says compensation concerns \"τραυματισμούς ή ασθένειες που προκύπτουν από την εργασία\"; the chunk speaks of an accident from a violent event, not illness.",
+      "It says the compensation is \"αποκαταστατική\" for losses \"(π.χ. για ιατρικές φροντίδες, απώλεια εισοδήματος)\" and not pay for the absent days; the chunk does not define it this way.",
+      "It offers an exception for absence pay, \"εκτός αν πρόκειται για καταγγελία\" when the employer dismisses \"λόγω απουσίας\"; the cited notice chunk has no link to absence through injury."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The short answer turns the rule around for this person: \"Δεν χρειάζεται αποζημίωση για μία εβδομάδα απουσίας\", though a week is more than the four days the rule requires; only later lines get it right.",
+     "unsupported": [
+      "Says the compensation concerns \"τραυματισμούς ή ασθένειες\"; the chunk speaks of an accident from a violent event, not illnesses.",
+      "Says the compensation is \"αποκαταστατική\" for financial harm \"(π.χ. για ιατρικές φροντίδες, απώλεια εισοδήματος)\"; the chunk doesn't describe its purpose or content.",
+      "Says pay for absent days is due only \"εκτός αν πρόκειται για καταγγελία\", as when dismissed \"λόγω απουσίας\"; the cited chunks give compensation for missing notice and don't link it to absence after an accident."
+     ]
+    },
+    "why": "Its short answer opens with «Δεν χρειάζεται αποζημίωση» for a week away, unless the stoppage is over four days. A week is over four days, so the rule gives this person the opposite."
+   },
+   "single-31": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says normal leave \"(20–26 ημέρες)\" \"δεν αυξάνεται αυτόματα με τα χρόνια, εκτός αν προβλέπεται ειδικά\"; none of its cited chunks say this, and the two exceptions it cites do not concern years of service."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says normal leave for employees \"(20–26 ημέρες)\" \"δεν αυξάνεται αυτόματα με τα χρόνια\" unless specially provided; none of its cited chunks says this."
+     ]
+    }
+   },
+   "vocab-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says \"Ο κανόνας ισχύει ακόμα και αν η εργασία υπερβαίνει τις κανονικές ώρες\", which the cited chunks do not say.",
+      "It says an employer's breach can bring \"τριήμερη αργία\"; that chunk punishes ΚΤΕΛ staff who work elsewhere while on leave or rest, not employers of taxi drivers."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says \"Ο κανόνας ισχύει ακόμα και αν η εργασία υπερβαίνει τις κανονικές ώρες\"; the cited chunks don't say this.",
+      "Says an employer's breach allows sanctions \"όπως η τριήμερη αργία\"; that chunk is Π.Δ. 119/1973, on bus and ΚΤΕΛ staff who work elsewhere during leave or rest, not on employers of taxi drivers."
+     ]
+    }
+   }
+  },
+  "oneshot-haiku": {
+   "lookup-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "sector-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says Π.Δ. 119/1973 \"ισχύει για το προσωπικό κίνησης των υπεραστικών ΚΤΕΛ\"; the cited chunk does not state that scope.",
+      "It says \"Το Π.Δ. 288/1976 αφορά μόνο τα αστικά ΚΤΕΛ\"; the cited chunk does not mention urban ΚΤΕΛ."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says Π.Δ. 119/1973 \"ισχύει για το προσωπικό κίνησης των υπεραστικών ΚΤΕΛ\"; the cited chunk never states this scope.",
+      "Says \"Το Π.Δ. 288/1976 αφορά μόνο τα αστικά ΚΤΕΛ\"; the cited chunk doesn't mention urban ΚΤΕΛ."
+     ]
+    }
+   },
+   "sector-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-04": {
+    "verdict": "fail",
+    "ruled": true,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The third key fact's limit is missing: it says only \"Αν λυθεί η σχέση εργασίας ... δικαιούσαι τις αποδοχές\", never that money replaces leave only at the end of employment, and it lists another money route next to it (\"αυξημένες κατά 100%\").",
+     "unsupported": []
+    },
+    "why": "The key fact says money replaces leave only when employment ends. The answer says money is due then, never says only, and lists a second route to money. The readers differed, and I ruled: the closest call in the read."
+   },
+   "single-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says an employer who does not keep the period pays \"το ήμισυ της αποζημίωσης\"; the chunk gives the half when the employer does give the notice period, the opposite case."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says that if the employer doesn't keep the notice period he pays \"το ήμισυ της αποζημίωσης\"; the chunk gives the half when the notice period is kept (\"Εάν δια της καταγγελίας τάσσηται ... η ... προθεσμία\")."
+     ]
+    }
+   },
+   "single-08": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-12": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-22": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "single-31": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "vocab-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "vocab-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   }
+  },
+  "agent": {
+   "lookup-02": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   },
+   "lookup-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says informing is done \"σύμφωνα με τις διατάξεις για την προστασία της ασφάλειας και της υγείας\", while the chunk says \"της ισχύουσας νομοθεσίας\"; the safety words are the next article's heading."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the informing is done \"σύμφωνα με τις διατάξεις για την προστασία της ασφάλειας και της υγείας\", while the chunk says \"σύμφωνα με τις διατάξεις της ισχύουσας νομοθεσίας\"; the safety words are the next article's heading."
+     ]
+    }
+   },
+   "single-08": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "The answer never says the illness must be proved: its quote cuts \"προσηκόντως αποδεδειγμένην\" with \"…\", and \"αποδεικνύει\" appears only about proof of abandonment.",
+     "unsupported": [
+      "It adds an exception, \"εκτός αν υπάρχει κάτι άλλο που αποδεικνύει εγκατάλειψη (π.χ. μη επικοινωνία ή άρνηση επαφής)\", which the chunk does not contain."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The proof requirement is left out: the short answer cuts \"προσηκόντως αποδεδειγμένην\" with \"…\", and the only similar word, \"αποδεικνύει εγκατάλειψη\", concerns abandonment, not proof of the illness.",
+     "unsupported": [
+      "Adds an exception, \"εκτός αν υπάρχει κάτι άλλο που αποδεικνύει εγκατάλειψη (π.χ. μη επικοινωνία ή άρνηση επαφής)\", which the chunk doesn't contain.",
+      "Says the protection applies because the illness \"διαρκεί λιγότερο από ένα μήνα\"; the chunk says \"ένα μήνα\" and the person was away a month."
+     ]
+    },
+    "why": "It never says the illness must be proved. Its short answer skips those words with \"…\", and the matcher took «αποδεικνύει εγκατάλειψη», about something else, for that fact."
+   },
+   "single-12": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the rest \"δεν μπορεί να διακοπεί ή να μειωθεί, εκτός αν προβλέπεται διαφορετικά από συλλογικές συμβάσεις ή ειδικές διατάξεις για ορισμένους κλάδους\"; the cited chunk has no such exception."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the rest \"δεν μπορεί να διακοπεί ή να μειωθεί, εκτός αν προβλέπεται διαφορετικά από συλλογικές συμβάσεις ή ειδικές διατάξεις για ορισμένους κλάδους\"; the cited chunks give no such exception.",
+      "Says the period runs from 00:01 \"ανεξάρτητα από το ωράριο εργασίας\"; the chunk doesn't say this."
+     ]
+    }
+   },
+   "vocab-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": []
+    }
+   }
+  },
+  "baseline": {
+   "lookup-04": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says the duty is \"για την εφαρμογή των διατάξεων προστασίας της ασφάλειας και υγείας, όπως ορίζεται στην οδηγία 93/104/ΕΚ\"; the chunk does not name that directive and those words are the next article's heading."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says the employer informs \"για την εφαρμογή των διατάξεων προστασίας της ασφάλειας και υγείας, όπως ορίζεται στην οδηγία 93/104/ΕΚ\"; the chunk gives no such purpose and never names that directive."
+     ]
+    }
+   },
+   "single-06": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It puts in quotation marks \"συμπληρώσαντας πέντε έτη υπηρεσίαν\", a step the chunk does not have; the chunk says \"τετραετή υπηρεσίαν\".",
+      "It describes the law \"ως ισχύει μέχρι το 1955\", a time limit the cited chunk does not give."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Puts in quotation marks \"δι' υπαλλήλους συμπληρώσαντας πέντε έτη υπηρεσίαν\"; the chunk's step is \"τετραετή υπηρεσίαν\" and has no five-year step.",
+      "Says the law applies \"ως ισχύει μέχρι το 1955\"; the chunk gives no such date."
+     ]
+    }
+   },
+   "single-08": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It states the service limit as \"περισσότερους από τέσσερις μήνες υπηρεσία\" instead of up to four years, and never states the four-year limit.",
+     "unsupported": [
+      "It says the law \"δεν επιτρέπει στον εργοδότη να καταγγείλει τη σύμβασή σου λόγω βραχείας ασθένειας\"; the chunk says only that the absence is not a termination by the employee.",
+      "It says the employer's decision \"μπορεί να είναι παράνομη\", which the chunk does not say."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "The key fact's limit of up to four years of service isn't stated, and a wrong one stands in its place: \"υπαλλήλους με περισσότερους από τέσσερις μήνες υπηρεσία\".",
+     "unsupported": [
+      "Says the law \"δεν επιτρέπει στον εργοδότη να καταγγείλει τη σύμβασή σου λόγω βραχείας ασθένειας\"; the chunk says only that the absence isn't termination by the employee.",
+      "Says the employer's decision \"μπορεί να είναι παράνομη\", a consequence the chunk doesn't state."
+     ]
+    },
+    "why": "The key fact names four years of service. The answer never says that, and says the law protects those with «περισσότερους από τέσσερις μήνες»."
+   },
+   "single-12": {
+    "verdict": "fail",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "fail",
+     "why": "It states the end of the 24-hour period wrong: \"λήγει στις 24:00 της επόμενης ημέρας\", while the rule is 00:01 to 24:00 of the same period, not into the next day.",
+     "unsupported": [
+      "It adds an exception, \"εκτός αν υπάρχουν ειδικές ρυθμίσεις για συγκεκριμένους κλάδους ή ομάδες (π.χ. νυχτερινές βάρδιες ή ανήλικοι)\", which the cited chunk does not contain."
+     ]
+    },
+    "reader_b": {
+     "verdict": "fail",
+     "why": "It states the 24-hour period wrong: \"λήγει στις 24:00 της επόμενης ημέρας\" makes it about 48 hours, while the chunk has it begin at 00:01 and end at 24:00 of the same period.",
+     "unsupported": [
+      "Adds an exception, \"εκτός αν υπάρχουν ειδικές ρυθμίσεις για συγκεκριμένους κλάδους ή ομάδες (π.χ. νυχτερινές βάρδιες ή ανήλικοι)\", which the cited chunk doesn't contain."
+     ]
+    },
+    "why": "It says the 24 hours end at 24:00 «της επόμενης ημέρας». The chunk has them start at 00:01 and end at 24:00 the same day."
+   },
+   "single-22": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says that for 20 to 49 workers \"ο τεχνικός ασφάλειας δεν είναι υποχρεωτικός\"; Π.Δ. 17/1996 art. 4 par. 2 says the employer \"έχει την υποχρέωση\" under 50 workers too.",
+      "It says a doctor is needed under 50 workers if the firm is in an \"ειδική κατηγορία κινδύνου (π.χ. ναυπηγεία, χημικές βιομηχανίες)\"; the cited chunks say nothing of the kind.",
+      "It says that in \"ναυπηγεία ή εργασίες με περισσότερους από 15 εργαζομένους\" a safety technician is required regardless of total staff; the chunk only sets qualifications for work on ships.",
+      "It says Ν. 1568/1985 \"τροποποιήθηκε από το Π.Δ. 17/1996 και το Π.Δ. 95/1999\"; the cited chunks do not say it was amended."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says that with 20 to 49 employees \"ο τεχνικός ασφάλειας δεν είναι υποχρεωτικός\"; the chunk says below 50 \"ο εργοδότης έχει την υποχρέωση να χρησιμοποιεί τις υπηρεσίες τεχνικού ασφάλειας\".",
+      "Says a doctor isn't required below 50 unless the firm is in an \"ειδική κατηγορία κινδύνου (π.χ. ναυπηγεία, χημικές βιομηχανίες)\" or hires one voluntarily; the chunks say none of this.",
+      "Says \"Σε ναυπηγεία ή εργασίες με περισσότερους από 15 εργαζομένους, ο τεχνικός ασφάλειας απαιτείται ανεξάρτητα από τον συνολικό αριθμό\"; the chunk uses 15 people only to set a technician's qualifications for work on ships.",
+      "Says \"Ο νόμος 1568/1985 τροποποιήθηκε από το Π.Δ. 17/1996 και το Π.Δ. 95/1999\"; the cited chunks don't say this."
+     ]
+    }
+   },
+   "single-31": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It says \"Ο νόμος δεν ορίζει αν η πρόσθετη άδεια είναι επιπλέον της κανονικής\" and that it \"συνήθως προστίθεται\"; the chunk says plainly \"επί πλέον της νόμιμης\", and neither chunk speaks of usual practice.",
+      "It says the decision \"ισχύει για όλους τους εργαζόμενους, ανεξάρτητα από το κλάδο ή το είδος της εργασιακής σχέσης\"; the chunk uses \"οποιαδήποτε σχέση\" only for what counts as prior service and says nothing of sectors."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Says \"Ο νόμος δεν ορίζει αν η πρόσθετη άδεια είναι επιπλέον της κανονικής\"; the chunk says \"επί πλέον της νόμιμης\".",
+      "Says the decision applies \"για όλους τους εργαζόμενους, ανεξάρτητα από το κλάδο ή το είδος της εργασιακής σχέσης τους\"; the chunk's \"οποιαδήποτε σχέση\" concerns only what counts as prior service."
+     ]
+    }
+   },
+   "vocab-05": {
+    "verdict": "pass",
+    "ruled": false,
+    "reader_a": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "It attributes the taxi rule and its quote «χορηγείται υποχρεωτικώς μία ημέρα αναπαύσεως» to \"Π.Δ. 119/1973\"; its only cited chunk has neither those words nor any mention of taxis.",
+      "It says the rule \"αφορά μόνο τους οδηγούς ταξί\", but the cited chunk concerns bus staff under ΚΤΕΛ.",
+      "It says the driver \"μπορεί να έχει δικαιώματα για αποζημίωση ή άλλες προστασίες\" if the employer breaches the rule; the cited chunk does not say this.",
+      "It says the rest \"δεν εξαρτάται από την συνολική απασχόληση του οδηγού\", which the cited chunk does not say."
+     ]
+    },
+    "reader_b": {
+     "verdict": "pass",
+     "why": "",
+     "unsupported": [
+      "Attributes the quote \"χορηγείται υποχρεωτικώς μία ημέρα αναπαύσεως καθ' εβδομάδα\" to \"Π.Δ. 119/1973 για τους οδηγούς ταξί\"; its only cited chunk has no such words and doesn't mention taxi drivers.",
+      "Says \"Ο κανόνας αφορά μόνο τους οδηγούς ταξί\" and \"δεν εξαρτάται από την συνολική απασχόληση του οδηγού\"; the cited chunk says neither.",
+      "Says the driver \"μπορεί να έχει δικαιώματα για αποζημίωση ή άλλες προστασίες\" if the rule is broken; the cited chunk doesn't mention this."
+     ]
+    }
+   }
+  }
+ }
+}

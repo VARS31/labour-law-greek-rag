@@ -4,30 +4,53 @@
 
 A learning project that answers questions about Greek labour law from 1852-1999. It uses agentic RAG:
 it searches 1,284 laws, decrees and decisions, rewrites the question and searches again when the
-results are weak, and answers with citations. Everything runs locally with Ollama, with no paid APIs.
+results are weak, and answers with citations. It's local by default, with Ollama. Claude Haiku is an optional cloud model
+for the judge and the writer, chosen per run. With Haiku, your question and the law chunks leave your machine.
 
 ## Results
 
-Three systems answered the same questions, all with the same local model writing the answer: the baseline from Phase 2, one-shot v2 (the same steps with better search) and the agent
-(search, judge, up to 3 rounds). The dev questions were used while building them. The test questions were kept aside, and each system ran on them once.
+Five systems answered the same questions with the same prompts: the baseline from Phase 2, one-shot v2 (the same steps with better search), the agent (search, judge, up to 3 rounds), and
+both of those with Claude Haiku as judge and writer in place of the local model. The dev questions were used while building the local systems. The test questions were kept aside, and each system ran on them once.
 
-| Measure | Dev: baseline | Dev: v2 | Dev: agent | Test: baseline | Test: v2 | Test: agent |
-|---|---:|---:|---:|---:|---:|---:|
-| **Complete answers, read by hand** | **6 of 26** | **9 of 26** | **13 of 26** | **5 of 16** | **5 of 16** | **4 of 16** |
-| Complete answers, by the matcher alone | 9 of 26 | 12 of 26 | 16 of 26 | 7 of 16 | 6 of 16 | 5 of 16 |
-| Key facts found | 51% | 68% | 78% | 60% | 69% | 66% |
-| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 2 of 4 | 1 of 4 | 3 of 4 |
-| Wrong refusals | 2 of 26 | 0 of 26 | 1 of 26 | 2 of 16 | 1 of 16 | 2 of 16 |
-| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 12 of 17 | 15 of 17 | 14 of 17 |
-| Time per question (median) | 36 s | 63 s | 141 s | 54 s | 49 s | 118 s |
-| Failures: search | 13 | 4 | 2 | 5 | 1 | 0 |
-| Failures: Judge | - | - | 1 | - | - | 3 |
-| Failures: Writer | 9 | 15 | 11 | 8 | 13 | 10 |
-| Failures: all | 22 | 19 | 14 | 13 | 14 | 13 |
+| Dev | Baseline | One-shot v2 | Agent | One-shot Haiku | Agent Haiku |
+|---|---:|---:|---:|---:|---:|
+| **Complete answers, read by hand** | **6 of 26** | **9 of 26** | **12 of 26** | **15 of 26** | **17 of 26** |
+| Of those, with a claim their sources don't support | 6 | 6 | 7 | 5 | 3 |
+| Complete by the matcher alone | 9 of 26 | 12 of 26 | 16 of 26 | 16 of 26 | 18 of 26 |
+| Key facts found | 51% | 68% | 78% | 78% | 85% |
+| Correct refusals | 4 of 6 | 4 of 6 | 5 of 6 | 5 of 6 | 5 of 6 |
+| Wrong refusals | 2 of 26 | 0 of 26 | 1 of 26 | 3 of 26 | 0 of 26 |
+| Right chunk reached the Writer | 13 of 27 | 22 of 27 | 24 of 27 | 22 of 27 | 25 of 27 |
+| Time per question (median) | 36 s | 63 s | 141 s | 12 s | 20 s |
+| Time for the whole run | 20 min | 33 min | 94 min | 6 min | 11 min |
+| Cost of the whole run | $0.00 | $0.00 | $0.00 | $0.08 | $0.13 |
+| Failures: search | 13 | 4 | 2 | 4 | 1 |
+| Failures: Judge | - | - | 1 | - | 1 |
+| Failures: Writer | 9 | 15 | 12 | 8 | 8 |
+| Failures: all | 22 | 19 | 15 | 12 | 10 |
 
-A complete answer has every key fact and none of them wrong. On dev the agent leads, but it was built on those questions. On test that lead is gone. Only 16 test questions can be answered, so
-one answer is about 6 points, and no gap on test is evidence either way. The agent refuses better on both sets and takes about 2.4 times as long as one-shot v2. On v2 and the agent, most failures
-are now the writer's. The full comparison, and what it can't show, is in [docs/final-report.md](docs/final-report.md).
+| Test | Baseline | One-shot v2 | Agent | One-shot Haiku | Agent Haiku |
+|---|---:|---:|---:|---:|---:|
+| **Complete answers, read by hand** | **5 of 16** | **5 of 16** | **4 of 16** | **10 of 16** | **10 of 16** |
+| Of those, with a claim their sources don't support | 5 | 5 | 2 | 2 | 3 |
+| Complete by the matcher alone | 7 of 16 | 6 of 16 | 5 of 16 | 11 of 16 | 11 of 16 |
+| Key facts found | 60% | 69% | 66% | 85% | 88% |
+| Correct refusals | 2 of 4 | 1 of 4 | 3 of 4 | 4 of 4 | 4 of 4 |
+| Wrong refusals | 2 of 16 | 1 of 16 | 2 of 16 | 1 of 16 | 0 of 16 |
+| Right chunk reached the Writer | 12 of 17 | 15 of 17 | 14 of 17 | 15 of 17 | 16 of 17 |
+| Time per question (median) | 54 s | 49 s | 118 s | 10 s | 21 s |
+| Time for the whole run | 19 min | 17 min | 52 min | 3 min | 8 min |
+| Cost of the whole run | $0.00 | $0.00 | $0.00 | $0.04 | $0.09 |
+| Failures: search | 5 | 1 | 0 | 1 | 0 |
+| Failures: Judge | - | - | 3 | - | 0 |
+| Failures: Writer | 8 | 13 | 10 | 5 | 6 |
+| Failures: all | 13 | 14 | 13 | 6 | 6 |
+
+A complete answer has every key fact and none of them wrong, as read by two readers who couldn't see which system wrote it. On test, Haiku doubles the complete answers: 10 of 16 on both Haiku systems, against 5 and 4 on the local ones.
+Its complete answers also say less that their sources don't support. It's faster here, and a test run cost $0.04 and $0.09. With Haiku the agent adds little to complete answers, but has no wrong refusals where one-shot Haiku has 4.
+Don't read too much into this. Only 16 test questions can be answered, those questions have been read before, and the readers are Claude models judging a Claude model. The full comparison, and what it can't show, is in [docs/final-report.md](docs/final-report.md).
+
+**With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. Haiku is off by default and chosen per run. Search, embeddings and the Query Enhancer stay local either way. [docs/models.md](docs/models.md) has the details and the cost.
 
 ## Status
 
@@ -38,10 +61,10 @@ are now the writer's. The full comparison, and what it can't show, is in [docs/f
 - [x] Phase 2: Evaluation set: 52 test questions with expected answers and sources, plus retrieval and answer metrics. Results are in [docs/eval-report.md](docs/eval-report.md): on the test questions, the right text reached the model for 12 of 17, and 7 of 16 answers had every key fact. Later phases have to beat that. Laws our data mentions but doesn't contain are listed in [docs/missing-laws.md](docs/missing-laws.md).
 - [x] Phase 3A: Fix the step that combines semantic and keyword search. Results are in [docs/retrieval-report.md](docs/retrieval-report.md): semantic search alone won, and the right text now reaches the model for 17 of 27 dev questions instead of 13. No answers were written in this step.
 - [x] Phase 3B: The Query Enhancer: one model call that rewrites a question into searches in the words of the law. Results are in [docs/enhancer-report.md](docs/enhancer-report.md): it adds no right chunks, 22 of 27 dev questions with or without it, and takes about 7 seconds. This step also made qwen3-embedding:4b the default and stopped the repeat filter from hiding newer rules.
-- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 13 of 26 answers are complete against 9 for one-shot (corrected in Phase 4A, reading both by one rule), at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
+- [x] Phase 3C: The agent loop with LangGraph: search → judge → search again if asked, at most 3 rounds → answer → citation check. Results are in [docs/agent-report.md](docs/agent-report.md): on the dev questions, 12 of 26 answers are complete against 9 for one-shot (corrected in Phases 4A and 4B, after reading the answers again), at about 167 seconds against 63. The judge's filter brings the gain. The extra rounds rescued no answer.
 - [x] Phase 3C.1: Two fixes: searching stops once an approved chunk answers directly, and round 2 reads further down the plain question's list. Results are in [docs/agent-report.md](docs/agent-report.md): one real rescue (`single-09`), wrong refusals down from 2 to 1, no new complete answer, and no faster. The agent is now frozen for Phase 4. [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md) gives every rule in plain words and traces one question.
 - [x] Phase 4A: Final test runs: one-shot v2 and the frozen agent, one run each on the test questions, compared with the Phase 2 baseline. Results are in [docs/final-report.md](docs/final-report.md): the agent's lead on dev doesn't carry over, with 4 of 16 test answers complete against 5 and 5, and 16 questions can't settle it.
-- [ ] Phase 4B: Try Claude Haiku as judge and writer, with a budget guard in code.
+- [x] Phase 4B: Claude Haiku as judge and writer, chosen per run, with a budget guard in code. Results are in [docs/final-report.md](docs/final-report.md): 10 of 16 test answers are complete on both Haiku systems, against 5 and 4 on the local ones, for $0.35 in all. [docs/models.md](docs/models.md) says which model does what, and what it costs.
 - [ ] Phase 5 (later): Add a modern layer with Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου), labelled by period, so answers can compare historical and current law.
 
 Backlog: extract the repeal links ("Κατηργήθη δια…") into metadata.
@@ -106,10 +129,13 @@ MEASURE IT
         |
         v
   compare one-shot and agentic .... built     Phase 4A
+        |
+        v
+  the same with Haiku, optional ... built     Phase 4B
 ```
 
 The one-shot baseline from Phase 1C skips the judge. It searches once and answers.
-Phase 2 measured it on the test questions, and Phase 4A compared it with one-shot v2 and the agent on the same questions.
+Phase 2 measured it on the test questions, Phase 4A compared it with one-shot v2 and the agent on the same questions, and Phase 4B added both of those with Haiku as judge and writer. A measuring run chooses Haiku with `--system oneshot-haiku` or `--system agent-haiku`. Search, embeddings and the Query Enhancer stay local either way.
 
 ## Project layout
 
@@ -118,9 +144,9 @@ Phase 2 measured it on the test questions, and Phase 4A compared it with one-sho
 | `README.md` | This file. |
 | `CLAUDE.md` | Project notes and working rules for Claude Code. |
 | `LICENSE` | MIT licence for the code in this repository. |
-| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres) and LangGraph (the agent loop), plus everything LangGraph brings along. |
+| `requirements.txt` | Python packages, with exact versions: duckdb (reads the dataset), psycopg (talks to Postgres), LangGraph (the agent loop) and the Anthropic SDK (the optional Haiku systems), plus everything those bring along. |
 | `docker-compose.yml` | Postgres 17 with pgvector, on port 5433. |
-| `.env.example` | Template for `.env`: database password, ports, and the Ollama model names and settings. |
+| `.env.example` | Template for `.env`: database password, ports, the Ollama model names and settings, and the optional Haiku key. |
 | `sql/` | The database schema, in numbered files run in order, plus the Greek stopword list `greek_labour.stop`. |
 | `prompts/` | The instructions for the answering model (`answer.md`), the note every answer ends with (`closing_note.md`), and the instructions for the Query Enhancer (`enhancer.md`) and the judge (`judge.md`). Edit them freely. |
 | `docs/data-exploration.md` | Phase 0 findings: what is in the data, its quality problems, size estimates. |
@@ -131,13 +157,14 @@ Phase 2 measured it on the test questions, and Phase 4A compared it with one-sho
 | `docs/retrieval-report.md` | Phase 3A results: five ways of combining semantic and keyword search, which one won and why, what the new refusal rule changed, and the test guard. |
 | `docs/enhancer-report.md` | Phase 3B results: what the Query Enhancer adds, its outputs good and bad, and the new default embedding and repeat filter. |
 | `docs/agent-report.md` | Phase 3C and 3C.1 results: the agent against one-shot, what the extra rounds did, what the two fixes changed, three traced examples and the most instructive failures. |
-| `docs/final-report.md` | Phase 4A results: the three systems on dev and test side by side, failures by step, every answer that failed when read, and how little 20 questions can show. |
+| `docs/final-report.md` | Phase 4A and 4B results: the five systems on dev and test side by side, claims their sources don't support, the overtime question, cost and time per run, failures by step, and how little 20 questions can show. |
+| `docs/models.md` | Which model does what, where it runs and what it costs, with Haiku's settings and the budget guard. |
 | `docs/how-a-question-is-answered.md` | How the final agent answers a question, for someone who doesn't read code: every rule, and one real question traced from start to finish. |
 | `docs/missing-laws.md` | Laws our chunks mention but don't contain, and documents that are only a title. The fetch list for Phase 5. |
 | `docs/project-journal.md` | The project owner's journal: goal, numbers, findings and lessons, phase by phase. |
 | `docs/code-tour.md` | A tour of the code for people who don't read Python. |
-| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`) and which system has used its one test run (`test_runs.json`). |
-| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). |
+| `eval/` | The test set (`questions.jsonl`), the owner's review of 20 items (`review.md`), the stored runs (`results/`), which system has used its one test run (`test_runs.json`), the blind readers' verdicts (`hand_read.json`) and what Haiku has cost (`haiku_spend.json`). |
+| `labour_rag/` | Shared Python code: cleaning and chunking (1A); settings, database, model client, loader and search (1B); choosing chunks, answering and checking citations (1C); scoring runs, matching key facts, finding law mentions and the second embedding model (2); ways of combining search results (3A); the embedding choice and the Query Enhancer (3B); the judge and the agent loop (3C). The optional Haiku client and its budget guard (4B). |
 | `scripts/explore_data.py` | Recomputes every number in the exploration doc. |
 | `scripts/build_chunks.py` | Cleans and chunks the labour-law volume, then writes the chunks file and the chunking report. |
 | `scripts/search_report.py` | Measures the database and the three search methods, then writes the search report. |
@@ -147,7 +174,7 @@ Phase 2 measured it on the test questions, and Phase 4A compared it with one-sho
 | `scripts/retrieval_report.py` | Writes the retrieval report from the stored fusion runs. |
 | `scripts/enhancer_report.py` | Runs the enhancer measurements and writes the enhancer report. |
 | `scripts/agent_report.py` | Compares the stored agent and one-shot runs and writes the agent report. |
-| `scripts/final_report.py` | Compares the three systems from their stored runs, holds the hand-read verdicts, and writes the final report. |
+| `scripts/final_report.py` | Compares the five systems from their stored runs and the hand-read verdicts, and writes the final report. |
 | `scripts/check_enhancer_prompt.py` | Checks that the examples in the enhancer's prompt are on topics that aren't in the test set. |
 | `scripts/missing_laws.py` | Lists the laws that are mentioned but missing, and writes the fetch list. |
 | `tests/` | Unit tests, using real examples from the data. |
@@ -273,6 +300,8 @@ Run every command below from the repository root, the folder that contains this 
     questions of the test split are for one final measurement per system, so a second run by the same system is
     refused. `eval/test_runs.json` records who has used it.
 
+**Optional: Claude Haiku as judge and writer.** Everything above works without it. To use it, put your key in `.env` as `ANTHROPIC_API_KEY`, and check it with `.venv/bin/python -m labour_rag.haiku_client`, which makes one tiny paid call. Then choose it per run, with `--system oneshot-haiku` or `--system agent-haiku`. **With Haiku, your question and the law chunks leave your machine** and go to Anthropic's API. The chunks are public law texts. A budget guard stops a run at $1. See [docs/models.md](docs/models.md).
+
 ## Everyday commands
 
 Once everything is set up, these are the commands you need day to day. Run them from the repository root.
@@ -292,6 +321,8 @@ If `docker` isn't found, run `export PATH="$HOME/.docker/bin:$PATH"` first.
 | Ask through the agent | `.venv/bin/python -m labour_rag.agent "your question"` (add `--trace` to see the rounds step by step) |
 | Measure the agent on the dev questions | `caffeinate -i .venv/bin/python -m labour_rag.evaluate --split dev --system agent` (about an hour and a half; it continues if stopped) |
 | Rewrite the final report from the stored runs | `.venv/bin/python -I scripts/final_report.py` |
+| Check the Haiku key, with one tiny paid call | `.venv/bin/python -m labour_rag.haiku_client` (prints only whether the key is set and works, and the cost) |
+| Measure with Haiku on the dev questions | `.venv/bin/python -m labour_rag.evaluate --split dev --system agent-haiku` (or `oneshot-haiku`). The question and the law chunks leave your machine |
 | See what the Query Enhancer makes of a question | `.venv/bin/python -m labour_rag.enhancer "your question" --search` |
 | Measure the enhancer and rewrite its report | `.venv/bin/python -I scripts/enhancer_report.py --run` |
 | Check the test questions against the chunks | `.venv/bin/python -I scripts/check_eval_set.py` |
@@ -352,6 +383,9 @@ Details and numbers are in [docs/data-exploration.md](docs/data-exploration.md).
 - **The agent is slow, and the judge can be wrong.** A question takes about 2 minutes, most of it the judge. It can
   reject the right chunk or call a wrong one relevant, and that can end the search. The writer can still misread a
   chunk it was given, or add something no chunk says. See [docs/agent-report.md](docs/agent-report.md).
-- **Few test questions, and a complete answer isn't always a safe one.** Only 16 test questions can be answered, so the
-  numbers above can't separate the systems. And 12 of the 14 test answers that pass a hand read still say something else
-  their source doesn't support. See [docs/final-report.md](docs/final-report.md).
+- **Few test questions, and a complete answer isn't always a safe one.** Only 16 test questions can be answered, so only a
+  large gap between systems means much, and those questions have been read before. The readers are Claude models, and
+  Haiku is one too. And 17 of the 34 test answers that pass a hand read still say something else their source doesn't
+  support. See [docs/final-report.md](docs/final-report.md).
+- **Haiku doesn't tell υπερεργασία from υπερωρία.** It gives the rate for one as the answer to a question about the other,
+  as the local model does. Its runs also aren't exactly repeatable: it takes no temperature or seed.

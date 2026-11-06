@@ -14,11 +14,11 @@ Phase 1C  One-shot answers (baseline) .................. done   0 of 8 fully cor
 Phase 2   Test set + measurements ...................... done   test: 7 of 16 answers complete (5 when read)
 Phase 3A  Fix the fusion step (retrieval only) ......... done   dev: right chunk 17 of 27, was 13
 Phase 3B  Query Enhancer (retrieval only) .............. done   dev: no gain, 22 of 27 with or without it
-Phase 3C  Agent loop with LangGraph .................... done   dev: 13 of 26 complete vs 9 (corrected in 4A), 167 s vs 63 s
-Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real rescue, wrong refusals 2 → 1, still 13 of 26
+Phase 3C  Agent loop with LangGraph .................... done   dev: 12 of 26 complete vs 9 (corrected in 4A and 4B), 167 s vs 63 s
+Phase 3C.1 Two fixes, then frozen ...................... done   dev: 1 real rescue, wrong refusals 2 → 1, still 12 of 26
 Phase 3   Agentic RAG with LangGraph .................. done (3A, 3B, 3C)
 Phase 4A  Final test runs, three systems side by side .. done   test: agent 4 of 16 complete vs 5 and 5, too few to separate them
-Phase 4B  Claude Haiku as Judge and Writer, budget guard in code
+Phase 4B  Claude Haiku as Judge and Writer, budget guard . done   test: 10 of 16 complete on both, vs 5 and 4 local, $0.35 in all
 Phase 5   Modern layer (Π.Δ. 80/2022 + missing laws)
 ```
 
@@ -361,6 +361,41 @@ Failures: search 3, Judge 2, writer 7. The Judge takes 67 of the 91 minutes.
 - Read every system by the same rule. Checking only the new one made my first number wrong.
 - A blind second reader is cheap. It agreed on 17 of 18, and the one difference was a mistake of mine: I compared the answer with the chunk and not with the words of the key fact.
 - Size the test set before comparing systems. With 16 answerable questions, one close call can reorder the table.
+
+---
+
+## Phase 4B: Haiku as Judge and Writer
+
+**Goal:** see what a better model changes, with the agent's logic and the prompts untouched. Local by default, cloud optional, chosen per run. Two new systems: `oneshot-haiku` (Writer) and `agent-haiku` (Judge and Writer). Search, embeddings and the Query Enhancer stay local.
+
+**What we did:** installed the official SDK (4 new packages, pinned) → a client with the same `chat()` as the local one, and no frozen file changed → budget guard: $1 per run, $3 in all, counted after every call, total on disk → one tiny key check ($0.000004) → code committed and tagged `haiku-frozen-4b` → both systems on dev, then once each on the same 20 test questions, with no changes in between → every answer scored complete on all five systems read blind by two fresh agents → [final-report.md](final-report.md) and [models.md](models.md) → README and project goal updated.
+
+**Key numbers:**
+
+| Measure | Dev: v2 | Dev: agent | Dev: one-shot Haiku | Dev: agent Haiku | Test: v2 | Test: agent | Test: one-shot Haiku | Test: agent Haiku |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Complete, read by hand | 9 of 26 | 12 of 26 | 15 of 26 | 17 of 26 | 5 of 16 | 4 of 16 | 10 of 16 | 10 of 16 |
+| Of those, with a claim their sources don't support | 6 | 7 | 5 | 3 | 5 | 2 | 2 | 3 |
+| Correct refusals | 4 of 6 | 5 of 6 | 5 of 6 | 5 of 6 | 1 of 4 | 3 of 4 | 4 of 4 | 4 of 4 |
+| Wrong refusals | 0 | 1 | 3 | 0 | 1 | 2 | 1 | 0 |
+| Median time | 63 s | 141 s | 12 s | 20 s | 49 s | 118 s | 10 s | 21 s |
+| Cost of the run | - | - | $0.08 | $0.13 | - | - | $0.04 | $0.09 |
+
+**Findings**
+- **The first change to show up in complete answers on test.** Haiku doubles them: 5 to 10 on the one-shot, 4 to 10 on the agent, in the same direction on dev. Question by question, 24 are complete only on Haiku and 2 only on the local model, across both sets. The Writer really was the weak step.
+- **The comparison I cared about most.** Complete answers with a claim their sources don't support, both sets together: one-shot 11 of 14 local, 7 of 25 Haiku; agent 9 of 16 local, 6 of 27 Haiku. Answers are about the same length, so it isn't because Haiku says less. Most of Haiku's are labels and scopes, but `single-06` reverses a rule.
+- **With Haiku the agent earns less.** 10 against 10 on test and 17 against 15 on dev, at about twice the time and cost. It buys a little more reach and no wrong refusals where one-shot Haiku has 4.
+- **Haiku doesn't tell υπερεργασία from υπερωρία.** On `reference-01` both Haiku systems give the 25% for υπερεργασία as the answer on υπερωρίες, and neither names Ν. 435/1976. The local systems do the same, and the chunks pointing to that law never reach any Writer.
+- **It costs almost nothing here.** $0.35 in all against a $3 limit. The guard never had to stop anything. Most of Haiku's output is thinking, billed as output: about 2,300 tokens a call in the first trial, more than estimated.
+- **Correction:** the blind read moves dev again. Both readers fail `single-23` on the three local systems, and pass the baseline's `sector-03` and v2's `single-27`, which I had failed. The agent goes from 13 to 12. Phase 3C's 15 against 12 is now 12 against 9. Every test verdict from Phase 4A stood.
+
+**Decisions:** local by default, cloud optional, and the README says clearly that with Haiku the question and the law chunks leave my machine. Same prompts, the model's defaults, nothing tuned, so runs aren't exactly repeatable. Where both readers agree their verdict stands, even over the earlier one; where they differ, a ruling that says so. `labour_rag.ask` and `labour_rag.agent` stay local: only measuring runs use Haiku.
+
+**Lessons**
+- Move the part that's actually failing. Search work took three phases and didn't change complete answers on test. Changing the Writer did, in about a day, for $0.35.
+- Check who is marking the work. The blind readers are Claude, and so is Haiku. Hidden labels don't hide a writing style, so this result needs a human reader before I fully trust it.
+- A small, cheap trial before freezing code catches what estimates miss. One question each showed the thinking cost before any full run.
+- A larger fresh test set is now the most useful next step: only large gaps mean much on 16 questions.
 
 ---
 

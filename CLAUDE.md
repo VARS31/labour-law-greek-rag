@@ -1,13 +1,13 @@
 # labour-law-greek-rag
 
-Learning project: **agentic RAG over Greek labour law**, fully local.
+Learning project: **agentic RAG over Greek labour law**, local by default, cloud optional.
 
 ## Goal
 
 - Scope: **labour law only**, i.e. volume 41 (label id 41, *ΕΡΓΑΤΙΚΗ ΝΟΜΟΘΕΣΙΑ*) of the Hugging Face
   dataset `AI-team-UoA/greek_legal_code` (CC-BY-4.0): 1,284 documents dated 1852–1999. The other 46
   volumes are out of scope. Later (Phase 5) a modern layer adds Π.Δ. 80/2022, labelled by period.
-- Models: local only, via **Ollama** (embeddings + LLM). No paid APIs.
+- Models: **local by default, cloud optional.** Search, embeddings and the Query Enhancer are always local, via **Ollama**. Claude Haiku can be the Judge and the Writer, chosen per run. With it, the question and the law chunks leave the machine. See [docs/models.md](docs/models.md).
 - Storage: **Postgres + pgvector in Docker on port 5433**. Postgres.app already runs on 5432; leave it alone.
 - Search: semantic (vectors) plus accent-insensitive keyword search.
 - Agent: a **LangGraph** loop: search → judge → search again (rewriter with katharevousa variants) → max
@@ -38,13 +38,13 @@ Same list as README.md "Status"; keep the two in sync.
   [docs/agent-report.md](docs/agent-report.md); every rule in plain words in [docs/how-a-question-is-answered.md](docs/how-a-question-is-answered.md))
 - 4A: final test runs: one-shot v2 and the frozen agent, one run each, compared with the Phase 2 baseline (**done**,
   [docs/final-report.md](docs/final-report.md))
-- 4B: Claude Haiku as Judge and Writer, with a budget guard in code
+- 4B: Claude Haiku as Judge and Writer, chosen per run, with a budget guard in code (**done**, [docs/final-report.md](docs/final-report.md), [docs/models.md](docs/models.md))
 - 5 (later): modern layer: add Π.Δ. 80/2022 (Κώδικας Ατομικού Εργατικού Δικαίου) with a period label, so
   answers can compare historical and current law
 - Backlog: extract repeal links ("Κατηργήθη δια…") into metadata. The raw sentences are already in the
   `repeal_sentences` field of each chunk.
 
-Next: Phase 4B.
+Next: a larger fresh test set is a later option; then Phase 5.
 
 - **After each phase, update the README status, layout and diagram.**
 - At the end of each phase, append a compact block to docs/project-journal.md: goal, what was done, key numbers, findings, decisions, lessons. Keep the existing text.
@@ -96,9 +96,9 @@ Next: Phase 4B.
 - Search: `.venv/bin/python -m labour_rag.search "…"`. Report: `.venv/bin/python scripts/search_report.py`
   (drops and rebuilds the HNSW index to measure; regenerates `docs/search-report.md`; hand-written comments live
   in its `COMMENTS` dict and must be re-checked when results change).
-- All model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
-  in `labour_rag/embeddings.py`.
-- Installed Python packages: duckdb, psycopg[binary], langgraph and what it brings (37 packages, all pinned in `requirements.txt`). Ask before adding more.
+- All local model calls go through `labour_rag/model_client.py` (Ollama HTTP API via urllib); model names come from `.env`, except qwen3's
+  in `labour_rag/embeddings.py`. Haiku's go through `labour_rag/haiku_client.py`.
+- Installed Python packages: duckdb, psycopg[binary], langgraph, anthropic and what they bring (41 packages, all pinned in `requirements.txt`). Ask before adding more.
 
 ## Answering (Phase 1C)
 
@@ -124,10 +124,10 @@ Next: Phase 4B.
 - `.venv/bin/python -m labour_rag.evaluate --split dev [--fusion rrf] [--max-per-document 4] [--retrieval-only] [--embedding bge-m3|qwen3-4b-plain] [--number-rule digits] [--enhancer variants|with-question] [--reuse-enhancer <dir>]`
   writes `eval/results/<date>_<config>/` (items.jsonl, summary.json, summary.md) and continues if interrupted.
   `--rescore <dir>` checks and scores stored answers again without a model or database (chunk text comes from the chunks file).
-- Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). All three have used theirs: the one-shot baseline
-  (`2026-11-04_oneshot-limit2-test`, equal-weight RRF), and `oneshot-v2` and `agent` (Phase 4A). `evaluate.TEST_SETTINGS` says who may use the split and with which settings; a finished run can't
+- Test split: one run per named system, recorded in `eval/test_runs.json` (`claim_test_run`). All five have used theirs: the one-shot baseline
+  (`2026-11-04_oneshot-limit2-test`, equal-weight RRF), `oneshot-v2` and `agent` (Phase 4A), and `oneshot-haiku` and `agent-haiku` (Phase 4B). `evaluate.TEST_SETTINGS` says who may use the split and with which settings; a finished run can't
   start again. A new system needs the owner's go-ahead and its own entry. Don't tune on the test split and don't read its answers: report which test items change by id only. The one exception
-  so far is Phase 4A's blind read of every test answer scored complete. A fresh test needs new questions.
+  so far is the blind read of every test answer scored complete (Phases 4A and 4B). A fresh test needs new questions.
 - Refusals: `citations.is_refusal`, the prompt's "Δεν βρέθηκε" or other clear words near the start of the answer, unless the
   sentence goes on with "αλλά". It doesn't check that a refusal names where the rule would be.
 - Test set: `eval/questions.jsonl`. Expected answers follow our data, not today's law. After editing it, run
@@ -168,17 +168,25 @@ Next: Phase 4B.
   because "Β.Δ. 16/18 Ιουλ. 1920" is a date. Telling someone a law is missing when it isn't is the worst mistake here.
 - `docs/how-a-question-is-answered.md` states every rule in plain words and traces one question. It's written by hand, so a change to the agent means changing it too.
 - **The agent is frozen at the local tag `agent-frozen-3c1`, and that's what its test run measured.** Everything that decides an answer stays as it is: `labour_rag/` except `evaluate.py`, `prompts/`, `sql/`, and the `CHAT_*` settings in `.env`.
-  `git diff agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing for an `agent` test run, and `evaluate` checks that itself (`frozen_changes`). Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
+  `git diff --diff-filter=a agent-frozen-3c1 -- labour_rag prompts sql ':!labour_rag/evaluate.py'` must print nothing, and `evaluate` checks that itself (`frozen_changes`). New files don't count: the Haiku client sits next to the frozen code. Any later change to the agent is a new named system with its own run. Don't tune it on dev or test.
 - Evaluate: `.venv/bin/python -m labour_rag.evaluate --split dev --system agent`, about an hour and a half. `agent_problem` labels failures search, judge or writer. Start long runs with `caffeinate -i`; a run
   started from Claude's session stops when the session does, unless started detached (`nohup caffeinate -ims …`), and continues if started again the same day. The 3C.1 run has its own name, `--name agent-3c1-qwen3-4b-semantic-units-limit4-dev`, so that it didn't continue the 3C run.
-- Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `FIXES`, `CHANGED`, `FIXES_NOTES`, `RESULT`, `ROUNDS`, `FAILURES`, `NEXT`, `LIMITS` and `WRONG_THOUGH_COMPLETE`, from reading the answers; the script stops if the claims it checks stop holding.
+- Report: `.venv/bin/python -I scripts/agent_report.py`. Hand-written `FIXES`, `CHANGED`, `FIXES_NOTES`, `RESULT`, `ROUNDS`, `FAILURES`, `NEXT` and `LIMITS`, from reading the answers, with the verdicts from `eval/hand_read.json`; the script stops if the claims it checks stop holding.
 
-## Final comparison (Phase 4A)
+## Final comparison (Phases 4A and 4B)
 
-- `.venv/bin/python -I scripts/final_report.py` rewrites `docs/final-report.md` from the six stored runs, with no model or database. Hand-written: `SHORT_VERSION`, `SYSTEMS_TEXT`, `TABLE_NOTES`, `SHOWS`, `LIMITS`, `HOW_RUN`, `NEXT`, and the verdicts
-  `WRONG_THOUGH_COMPLETE` (with `EVIDENCE`) and `NOTED`. It stops if a claim stops holding, or if the main table in README.md differs from its own.
-- The hand rule, the same for all systems: an answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included. Mistakes outside the key facts are noted, not counted. `scripts/agent_report.py` takes its verdicts from `final_report.py`.
+- `.venv/bin/python -I scripts/final_report.py` rewrites `docs/final-report.md` from the ten stored runs and `eval/hand_read.json`, with no model or database. Hand-written: `SHORT_VERSION`, `SYSTEMS_TEXT`, `TABLE_NOTES`, `UNSUPPORTED_TEXT`, `SHOWS`, `OVERTIME`, `PAIRS_TEXT`, `LIMITS`, `HOW_RUN`, `NEXT` and `EVIDENCE`.
+  It stops if a claim stops holding, or if the two tables in README.md differ from its own.
+- `eval/hand_read.json` holds the verdict on every answer scored complete, and each blind reader's unsupported claims. Where the two readers agree, their verdict stands; where they differ it's a ruling, marked `ruled`. `scripts/agent_report.py` takes its verdicts from there too.
+- The hand rule, the same for all systems: an answer fails if it states a key fact wrong or leaves one out, anywhere, short answer included. Mistakes outside the key facts are listed as unsupported claims, not counted as fails.
 - Failures by step come from `evaluate.problem` (one-shots) and `evaluate.agent_problem`; an answer that fails when read goes through the same functions.
+
+## Haiku (Phase 4B)
+
+- `labour_rag/haiku_client.py` has the same `chat()` as `ModelClient`. The Judge's and the Writer's calls go to `claude-haiku-5-5` through the official SDK; the Enhancer (recognised by `enhancer.SCHEMA`) and embeddings go to the local client. No frozen file changes. Same prompts; no temperature, no seed, thinking at the model's default effort, no tuning. Runs aren't exactly repeatable.
+- **The key:** `ANTHROPIC_API_KEY` in `.env`. Never open, print or log it. Only check that it's set: `.venv/bin/python -m labour_rag.haiku_client` says yes or no, and makes one tiny call.
+- **Budget guard:** `labour_rag/budget.py`, $1 per run and $3 across all of 4B, counted after every call, total on disk in `eval/haiku_spend.json`. Stops cleanly before a call that could pass a limit, and the run can continue. A later phase that spends more needs the owner's new limits.
+- **Freeze:** `evaluate` refuses a Haiku run (except a try with `--ids`) unless the code matches both `agent-frozen-3c1` and `haiku-frozen-4b`, and refuses its test run until its dev run has finished. `--system oneshot-haiku` and `--system agent-haiku` have used their test runs.
 
 ## Code
 

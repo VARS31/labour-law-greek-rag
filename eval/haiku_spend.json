@@ -1,0 +1,47 @@
+{
+ "total": 0.3499385,
+ "runs": {
+  "key-check": {
+   "spent": 3.7e-06,
+   "calls": 1,
+   "input_tokens": 17,
+   "output_tokens": 4
+  },
+  "2026-11-06_smoke-oneshot-haiku": {
+   "spent": 0.0024584,
+   "calls": 1,
+   "input_tokens": 9439,
+   "output_tokens": 3029
+  },
+  "2026-11-06_smoke-agent-haiku": {
+   "spent": 0.0070834,
+   "calls": 3,
+   "input_tokens": 27224,
+   "output_tokens": 8722
+  },
+  "2026-11-06_oneshot-haiku-qwen3-4b-semantic-units-limit2-dev": {
+   "spent": 0.0750747,
+   "calls": 32,
+   "input_tokens": 312522,
+   "output_tokens": 87645
+  },
+  "2026-11-06_agent-haiku-qwen3-4b-semantic-units-limit4-dev": {
+   "spent": 0.1298,
+   "calls": 64,
+   "input_tokens": 558725,
+   "output_tokens": 147855
+  },
+  "2026-11-06_oneshot-haiku-qwen3-4b-semantic-units-limit2-test": {
+   "spent": 0.0437218,
+   "calls": 20,
+   "input_tokens": 197853,
+   "output_tokens": 47873
+  },
+  "2026-11-06_agent-haiku-qwen3-4b-semantic-units-limit4-test": {
+   "spent": 0.0917965,
+   "calls": 44,
+   "input_tokens": 413650,
+   "output_tokens": 100863
+  }
+ }
+}
